@@ -1,0 +1,92 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+    depends_on:
+      - redis
+      - mlflow
+    ports:
+      - "8000:8000"
+
+  ui:
+    build:
+      context: .
+      dockerfile: apps/ui/Dockerfile
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+    depends_on:
+      - api
+    ports:
+      - "8501:8501"
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: infra/mlflow/Dockerfile
+    command:
+      [
+        "mlflow",
+        "server",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5000",
+        "--backend-store-uri",
+        "sqlite:///mlflow.db",
+        "--default-artifact-root",
+        "/mlflow/artifacts",
+      ]
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_data:/mlflow
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana-oss:11.2.2
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+
+volumes:
+  redis_data:
+  mlflow_data:
+  prometheus_data:
+  grafana_data:
