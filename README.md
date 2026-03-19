@@ -40,6 +40,7 @@ Initial repository scaffold for a nutritional retrieval-augmented generation sys
 - Python project metadata in `pyproject.toml`
 - Minimal FastAPI app with health and readiness endpoints
 - Minimal Streamlit landing page for the demo UI
+- Starter ETL extract pipeline modules for CSV, JSON, HTML, and text sources
 - Make targets for local development
 - GitHub Actions CI workflow for linting and tests
 - GitHub Actions publish workflow for API and UI images to GHCR
@@ -62,6 +63,16 @@ In a second shell:
 source .venv/bin/activate
 make run-ui
 ```
+
+Run the starter extract pipeline:
+
+```bash
+source .venv/bin/activate
+export PYTHONPATH=src
+make run-etl-extract
+```
+
+This writes normalized raw documents to `data/raw/extracted_documents.ndjson`.
 
 ## Local Infra with Docker Compose
 
@@ -95,7 +106,9 @@ docker compose down
 
 ## Next Build Steps
 
-1. Add ingestion and chunking pipelines for nutritional data.
-2. Wire Pinecone indexing and retrieval through LangChain.
-3. Add the reranker training and serving path under `ml/reranker`.
-4. Wire retrieval, reranking, and answer generation into the API and UI.
+1. Expand source adapters and add production-grade extraction quality checks.
+2. Add transformation and chunking pipelines for nutritional records.
+3. Wire Pinecone indexing and retrieval through LangChain.
+4. Add the reranker training and serving path under `ml/reranker`.
+5. Wire retrieval, reranking, and answer generation into the API and UI.
+6. Evaluate `PydanticAI` in a later stage if we add agentic LLM workflows.

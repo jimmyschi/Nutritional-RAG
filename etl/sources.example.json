@@ -1,0 +1,36 @@
+{
+  "output_path": "data/raw/extracted_documents.ndjson",
+  "sources": [
+    {
+      "source_id": "sample-food-csv",
+      "kind": "csv",
+      "location": "etl/samples/foods.csv",
+      "source_name": "Sample Foods CSV",
+      "license": "demo",
+      "metadata": {
+        "domain": "foods"
+      }
+    },
+    {
+      "source_id": "sample-guideline-json",
+      "kind": "json",
+      "location": "etl/samples/guidelines.json",
+      "source_name": "Sample Nutrition Guidelines",
+      "license": "demo",
+      "metadata": {
+        "domain": "guidelines"
+      }
+    },
+    {
+      "source_id": "sample-article-html",
+      "kind": "html",
+      "location": "etl/samples/article.html",
+      "source_name": "Sample HTML Nutrition Article",
+      "license": "demo",
+      "metadata": {
+        "title": "Hydration and Electrolytes",
+        "domain": "education"
+      }
+    }
+  ]
+}

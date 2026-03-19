@@ -27,3 +27,6 @@ mlruns/
 
 node_modules/
 *.log
+
+# Local documentation and notes that should not be committed
+docs/local/

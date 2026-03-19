@@ -1,0 +1,12 @@
+[
+  {
+    "title": "Protein intake baseline",
+    "description": "Adults should target at least 0.8 g/kg/day protein, adjusted by training load.",
+    "population": "adults"
+  },
+  {
+    "title": "Fiber recommendation",
+    "description": "Aim for 25 to 38 grams of dietary fiber per day depending on age and sex.",
+    "population": "general"
+  }
+]
