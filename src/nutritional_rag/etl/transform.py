@@ -24,6 +24,45 @@ _CANONICAL_NUTRIENT_MAP = {
     "sodium_mg": "sodium_mg",
 }
 
+_NUTRITION_KEYWORDS = {
+    "nutrition",
+    "nutrient",
+    "protein",
+    "carbohydrate",
+    "carbohydrates",
+    "carbs",
+    "fat",
+    "fiber",
+    "calories",
+    "kcal",
+    "micronutrient",
+    "macronutrient",
+    "diet",
+    "meal",
+    "meals",
+    "hydration",
+    "electrolyte",
+    "sodium",
+    "potassium",
+    "supplement",
+}
+
+_NON_NUTRITION_KEYWORDS = {
+    "workout",
+    "training",
+    "sets",
+    "reps",
+    "repetition",
+    "repetitions",
+    "bench",
+    "squat",
+    "deadlift",
+    "cardio",
+    "program",
+    "routine",
+    "periodization",
+}
+
 
 def _normalize_whitespace(text: str) -> str:
     lines = [line.strip() for line in text.splitlines()]
@@ -68,13 +107,30 @@ def _extract_nutrients_from_lines(lines: Iterable[str]) -> dict[str, float]:
     return nutrients
 
 
+def _keyword_hits(text: str, keywords: set[str]) -> int:
+    lowered = text.lower()
+    return sum(lowered.count(keyword) for keyword in keywords)
+
+
+def _nutrition_score(text: str) -> tuple[int, int, int]:
+    positive_hits = _keyword_hits(text, _NUTRITION_KEYWORDS)
+    negative_hits = _keyword_hits(text, _NON_NUTRITION_KEYWORDS)
+    score = positive_hits - negative_hits
+    return score, positive_hits, negative_hits
+
+
 def transform_document(document: RawDocument) -> TransformedDocument:
     clean_text = _normalize_whitespace(document.text)
     nutrients = _extract_nutrients_from_lines(clean_text.splitlines())
+    score, positive_hits, negative_hits = _nutrition_score(clean_text)
 
     metadata = {
         **document.metadata,
         "has_nutrients": bool(nutrients),
+        "nutrition_score": score,
+        "nutrition_keyword_hits": positive_hits,
+        "non_nutrition_keyword_hits": negative_hits,
+        "is_nutrition_content": score >= 2 or bool(nutrients),
     }
 
     return TransformedDocument(

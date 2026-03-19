@@ -74,6 +74,14 @@ make run-etl-extract
 
 This writes normalized raw documents to `data/raw/extracted_documents.ndjson`.
 
+For real local sources (recommended):
+
+```bash
+cp etl/sources.bodybuilding.example.json etl/sources.bodybuilding.local.json
+# edit the location path in the local file
+python -m nutritional_rag.etl.cli --stage extract --config etl/sources.bodybuilding.local.json
+```
+
 Run the transform stage:
 
 ```bash
@@ -83,6 +91,7 @@ make run-etl-transform
 ```
 
 This writes transformed records to `data/processed/transformed_documents.ndjson`.
+By default, this stage applies nutrition-only filtering with keyword/rule scoring.
 
 ## Local Infra with Docker Compose
 
@@ -103,11 +112,48 @@ Useful endpoints:
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
 
+Grafana default login (from compose env defaults):
+
+- Username: `admin`
+- Password: `admin`
+
+If login fails because a prior password was persisted in Docker volume state,
+reset Grafana state with:
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
 Stop services:
 
 ```bash
 docker compose down
-```chunking and retrieval-focused document shaping
+```
+
+## Real Source Testing
+
+You can test extraction against real local data sources, including PDF books.
+
+Example PDF source config:
+
+- `etl/sources.bodybuilding.example.json` (template)
+
+Use your local-only config (ignored by git):
+
+```bash
+cp etl/sources.bodybuilding.example.json etl/sources.bodybuilding.local.json
+# edit location to your absolute local PDF path
+
+source .venv/bin/activate
+pip install -e ".[dev]"
+export PYTHONPATH=src
+python -m nutritional_rag.etl.cli --stage extract --config etl/sources.bodybuilding.local.json
+python -m nutritional_rag.etl.cli --stage transform --input data/raw/extracted_documents.ndjson
+```
+
+For PDFs, extraction currently emits one document per page with page metadata,
+which is a good base for later nutrition-only filtering and chunking.
 
 ## GitHub Actions
 

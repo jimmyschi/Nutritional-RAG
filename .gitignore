@@ -30,3 +30,6 @@ node_modules/
 
 # Local documentation and notes that should not be committed
 docs/local/
+
+# Local one-off ETL source configs
+etl/*.local.json

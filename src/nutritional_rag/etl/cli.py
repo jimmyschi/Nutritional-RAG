@@ -27,6 +27,17 @@ def _parse_args() -> argparse.Namespace:
         required=False,
         help="Optional output path override for the selected stage",
     )
+    parser.add_argument(
+        "--nutrition-only",
+        action="store_true",
+        help="When stage=transform, keep only nutrition-relevant documents",
+    )
+    parser.add_argument(
+        "--min-nutrition-score",
+        type=int,
+        default=2,
+        help="When stage=transform, minimum score threshold for nutrition filtering",
+    )
     return parser.parse_args()
 
 
@@ -44,8 +55,17 @@ def _run_extract(config_path: str, output_override: str | None) -> None:
     print(summary.model_dump_json(indent=2))
 
 
-def _run_transform(input_path: str, output_override: str | None) -> None:
-    payload = {"input_path": input_path}
+def _run_transform(
+    input_path: str,
+    output_override: str | None,
+    nutrition_only: bool,
+    min_nutrition_score: int,
+) -> None:
+    payload = {
+        "input_path": input_path,
+        "nutrition_only": nutrition_only,
+        "min_nutrition_score": min_nutrition_score,
+    }
     if output_override:
         payload["output_path"] = output_override
 
@@ -63,7 +83,7 @@ def main() -> None:
         _run_extract(args.config, args.output)
         return
 
-    _run_transform(args.input, args.output)
+    _run_transform(args.input, args.output, args.nutrition_only, args.min_nutrition_score)
 
 
 if __name__ == "__main__":

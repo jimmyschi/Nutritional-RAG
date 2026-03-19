@@ -6,7 +6,7 @@ def test_extract_html_source() -> None:
     source = ExtractionSource(
         source_id="article",
         kind="html",
-        location="etl/samples/article.html",
+        location="tests/fixtures/extract/article.html",
         source_name="article",
     )
 

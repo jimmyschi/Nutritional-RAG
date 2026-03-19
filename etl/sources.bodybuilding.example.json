@@ -1,0 +1,16 @@
+{
+  "output_path": "data/raw/extracted_documents.ndjson",
+  "sources": [
+    {
+      "source_id": "bodybuilding-book-pdf",
+      "kind": "pdf",
+      "location": "/absolute/path/to/be-your-own-bodybuilding-coach.pdf",
+      "source_name": "Be Your Own Bodybuilding Coach",
+      "license": "personal-use-check-license",
+      "metadata": {
+        "domain": "bodybuilding",
+        "source_type": "book"
+      }
+    }
+  ]
+}

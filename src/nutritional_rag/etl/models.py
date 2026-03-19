@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class ExtractionSource(BaseModel):
     source_id: str
-    kind: Literal["csv", "json", "html", "text"]
+    kind: Literal["csv", "json", "html", "text", "pdf"]
     location: str
     source_name: str
     license: str | None = None
@@ -50,6 +50,8 @@ class TransformedDocument(BaseModel):
 class TransformPipelineConfig(BaseModel):
     input_path: str = "data/raw/extracted_documents.ndjson"
     output_path: str = "data/processed/transformed_documents.ndjson"
+    nutrition_only: bool = False
+    min_nutrition_score: int = 2
 
 
 class TransformRunSummary(BaseModel):
@@ -58,3 +60,5 @@ class TransformRunSummary(BaseModel):
     total_documents: int
     transformed_documents: int
     documents_with_nutrients: int
+    nutrition_candidate_documents: int
+    filtered_out_documents: int

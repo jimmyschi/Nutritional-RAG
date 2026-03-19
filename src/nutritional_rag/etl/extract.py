@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 from html.parser import HTMLParser
+from io import BytesIO
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -49,6 +50,8 @@ def extract_source(source: ExtractionSource) -> list[RawDocument]:
         return _extract_html(source)
     if source.kind == "text":
         return _extract_text(source)
+    if source.kind == "pdf":
+        return _extract_pdf(source)
 
     raise ValueError(f"Unsupported source kind: {source.kind}")
 
@@ -158,3 +161,44 @@ def _extract_text(source: ExtractionSource) -> list[RawDocument]:
             metadata=dict(source.metadata),
         )
     ]
+
+
+def _extract_pdf(source: ExtractionSource) -> list[RawDocument]:
+    try:
+        from pypdf import PdfReader
+    except ModuleNotFoundError as error:
+        raise ModuleNotFoundError(
+            "PDF extraction requires 'pypdf'. Install with: pip install pypdf"
+        ) from error
+
+    pdf_bytes = _read_location(source.location)
+    reader = PdfReader(BytesIO(pdf_bytes))
+    page_count = len(reader.pages)
+    base_title = source.metadata.get("title") if source.metadata else None
+
+    documents: list[RawDocument] = []
+    for index, page in enumerate(reader.pages):
+        text = (page.extract_text() or "").strip()
+        if not text:
+            continue
+
+        document_id = _stable_document_id(source.source_id, index, text)
+        metadata = {
+            "page_number": index + 1,
+            "page_count": page_count,
+            **source.metadata,
+        }
+
+        documents.append(
+            RawDocument(
+                document_id=document_id,
+                source_id=source.source_id,
+                source_name=source.source_name,
+                source_location=source.location,
+                title=base_title,
+                text=text,
+                metadata=metadata,
+            )
+        )
+
+    return documents

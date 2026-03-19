@@ -45,6 +45,8 @@ def run_transform_pipeline(config: TransformPipelineConfig) -> TransformRunSumma
     transformed_count = 0
     nutrient_count = 0
     total_documents = 0
+    nutrition_candidate_count = 0
+    filtered_out_count = 0
 
     with input_path.open("r", encoding="utf-8") as input_handle, output_path.open(
         "w", encoding="utf-8"
@@ -62,6 +64,16 @@ def run_transform_pipeline(config: TransformPipelineConfig) -> TransformRunSumma
             if transformed.nutrient_values:
                 nutrient_count += 1
 
+            is_nutrition_content = bool(transformed.metadata.get("is_nutrition_content", False))
+            nutrition_score = int(transformed.metadata.get("nutrition_score", 0))
+
+            if is_nutrition_content:
+                nutrition_candidate_count += 1
+
+            if config.nutrition_only and nutrition_score < config.min_nutrition_score:
+                filtered_out_count += 1
+                continue
+
             output_handle.write(transformed.model_dump_json())
             output_handle.write("\n")
 
@@ -71,4 +83,6 @@ def run_transform_pipeline(config: TransformPipelineConfig) -> TransformRunSumma
         total_documents=total_documents,
         transformed_documents=transformed_count,
         documents_with_nutrients=nutrient_count,
+        nutrition_candidate_documents=nutrition_candidate_count,
+        filtered_out_documents=filtered_out_count,
     )

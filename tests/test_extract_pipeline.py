@@ -13,13 +13,13 @@ def test_extract_pipeline_writes_ndjson(tmp_path: Path) -> None:
                 {
                     "source_id": "foods",
                     "kind": "csv",
-                    "location": "etl/samples/foods.csv",
+                    "location": "tests/fixtures/extract/foods.csv",
                     "source_name": "foods",
                 },
                 {
                     "source_id": "guidelines",
                     "kind": "json",
-                    "location": "etl/samples/guidelines.json",
+                    "location": "tests/fixtures/extract/guidelines.json",
                     "source_name": "guidelines",
                 },
             ],

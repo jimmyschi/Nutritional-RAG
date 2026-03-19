@@ -19,3 +19,5 @@ def test_transform_document_extracts_nutrients() -> None:
     assert transformed.nutrient_values["fat_g"] == 0
     assert transformed.nutrient_values["calories_kcal"] == 100
     assert transformed.metadata["has_nutrients"] is True
+    assert transformed.metadata["is_nutrition_content"] is True
+    assert transformed.metadata["nutrition_score"] >= 2
