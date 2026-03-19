@@ -62,3 +62,29 @@ class TransformRunSummary(BaseModel):
     documents_with_nutrients: int
     nutrition_candidate_documents: int
     filtered_out_documents: int
+
+
+class ChunkedDocument(BaseModel):
+    chunk_id: str
+    document_id: str
+    source_id: str
+    title: str | None = None
+    chunk_index: int
+    chunk_total: int
+    text: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChunkPipelineConfig(BaseModel):
+    input_path: str = "data/processed/transformed_documents.ndjson"
+    output_path: str = "data/processed/chunks.ndjson"
+    chunk_size: int = 400
+    chunk_overlap: int = 50
+
+
+class ChunkRunSummary(BaseModel):
+    input_path: str
+    output_path: str
+    total_documents: int
+    total_chunks: int
+    avg_chunks_per_document: float

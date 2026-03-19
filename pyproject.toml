@@ -7,7 +7,7 @@ name = "nutritional-rag"
 version = "0.1.0"
 description = "Repository scaffold for a nutritional RAG system."
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]

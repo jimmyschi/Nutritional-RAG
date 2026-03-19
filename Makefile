@@ -1,7 +1,7 @@
 PYTHON ?= python
 PIP ?= pip
 
-.PHONY: install-dev lint test run-api run-ui run-etl-extract run-etl-transform up down
+.PHONY: install-dev lint test run-api run-ui run-etl-extract run-etl-transform run-etl-chunk up down
 
 install-dev:
 	$(PIP) install --upgrade pip
@@ -24,6 +24,9 @@ run-etl-extract:
 
 run-etl-transform:
 	PYTHONPATH=src $(PYTHON) -m nutritional_rag.etl.cli --stage transform --input data/raw/extracted_documents.ndjson --nutrition-only --min-nutrition-score 2
+
+run-etl-chunk:
+	PYTHONPATH=src $(PYTHON) -m nutritional_rag.etl.cli --stage chunk --input data/processed/bodybuilding_book_transformed_nutrition_only.ndjson --output data/processed/chunks.ndjson
 
 up:
 	docker compose up --build -d

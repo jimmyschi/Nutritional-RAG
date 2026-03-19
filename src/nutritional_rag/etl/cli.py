@@ -3,13 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 
-from nutritional_rag.etl.models import ExtractPipelineConfig, TransformPipelineConfig
-from nutritional_rag.etl.pipeline import run_extract_pipeline, run_transform_pipeline
+from nutritional_rag.etl.models import (
+    ChunkPipelineConfig,
+    ExtractPipelineConfig,
+    TransformPipelineConfig,
+)
+from nutritional_rag.etl.pipeline import (
+    run_chunk_pipeline,
+    run_extract_pipeline,
+    run_transform_pipeline,
+)
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Nutritional RAG ETL stages")
-    parser.add_argument("--stage", choices=["extract", "transform"], default="extract")
+    parser.add_argument("--stage", choices=["extract", "transform", "chunk"], default="extract")
     parser.add_argument(
         "--config",
         required=False,
@@ -37,6 +45,18 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=2,
         help="When stage=transform, minimum score threshold for nutrition filtering",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=400,
+        help="When stage=chunk, target chunk size in tokens",
+    )
+    parser.add_argument(
+        "--chunk-overlap",
+        type=int,
+        default=50,
+        help="When stage=chunk, overlap between consecutive chunks in tokens",
     )
     return parser.parse_args()
 
@@ -76,6 +96,27 @@ def _run_transform(
     print(summary.model_dump_json(indent=2))
 
 
+def _run_chunk(
+    input_path: str,
+    output_override: str | None,
+    chunk_size: int,
+    chunk_overlap: int,
+) -> None:
+    payload: dict = {
+        "input_path": input_path,
+        "chunk_size": chunk_size,
+        "chunk_overlap": chunk_overlap,
+    }
+    if output_override:
+        payload["output_path"] = output_override
+
+    config = ChunkPipelineConfig.model_validate(payload)
+    summary = run_chunk_pipeline(config)
+
+    print("Chunk pipeline finished")
+    print(summary.model_dump_json(indent=2))
+
+
 def main() -> None:
     args = _parse_args()
 
@@ -83,7 +124,11 @@ def main() -> None:
         _run_extract(args.config, args.output)
         return
 
-    _run_transform(args.input, args.output, args.nutrition_only, args.min_nutrition_score)
+    if args.stage == "transform":
+        _run_transform(args.input, args.output, args.nutrition_only, args.min_nutrition_score)
+        return
+
+    _run_chunk(args.input, args.output, args.chunk_size, args.chunk_overlap)
 
 
 if __name__ == "__main__":

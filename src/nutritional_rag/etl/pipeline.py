@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from nutritional_rag.etl.chunk import chunk_document
 from nutritional_rag.etl.extract import extract_source
 from nutritional_rag.etl.models import (
+    ChunkPipelineConfig,
+    ChunkRunSummary,
     ExtractPipelineConfig,
     ExtractRunSummary,
     RawDocument,
+    TransformedDocument,
     TransformPipelineConfig,
     TransformRunSummary,
 )
@@ -85,4 +89,41 @@ def run_transform_pipeline(config: TransformPipelineConfig) -> TransformRunSumma
         documents_with_nutrients=nutrient_count,
         nutrition_candidate_documents=nutrition_candidate_count,
         filtered_out_documents=filtered_out_count,
+    )
+
+
+def run_chunk_pipeline(config: ChunkPipelineConfig) -> ChunkRunSummary:
+    input_path = Path(config.input_path)
+    output_path = Path(config.output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    total_documents = 0
+    total_chunks = 0
+
+    with input_path.open("r", encoding="utf-8") as input_handle, output_path.open(
+        "w", encoding="utf-8"
+    ) as output_handle:
+        for line in input_handle:
+            payload = line.strip()
+            if not payload:
+                continue
+
+            total_documents += 1
+            doc = TransformedDocument.model_validate_json(payload)
+            chunks = chunk_document(doc, config)
+
+            for chunk in chunks:
+                output_handle.write(chunk.model_dump_json())
+                output_handle.write("\n")
+
+            total_chunks += len(chunks)
+
+    avg = round(total_chunks / total_documents, 2) if total_documents else 0.0
+
+    return ChunkRunSummary(
+        input_path=str(input_path),
+        output_path=str(output_path),
+        total_documents=total_documents,
+        total_chunks=total_chunks,
+        avg_chunks_per_document=avg,
     )
