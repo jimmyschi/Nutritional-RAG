@@ -36,3 +36,25 @@ class ExtractRunSummary(BaseModel):
     output_path: str
     total_documents: int
     documents_by_source: dict[str, int]
+
+
+class TransformedDocument(BaseModel):
+    document_id: str
+    source_id: str
+    title: str | None = None
+    clean_text: str
+    nutrient_values: dict[str, float] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TransformPipelineConfig(BaseModel):
+    input_path: str = "data/raw/extracted_documents.ndjson"
+    output_path: str = "data/processed/transformed_documents.ndjson"
+
+
+class TransformRunSummary(BaseModel):
+    input_path: str
+    output_path: str
+    total_documents: int
+    transformed_documents: int
+    documents_with_nutrients: int

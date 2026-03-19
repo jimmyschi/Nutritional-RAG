@@ -74,6 +74,16 @@ make run-etl-extract
 
 This writes normalized raw documents to `data/raw/extracted_documents.ndjson`.
 
+Run the transform stage:
+
+```bash
+source .venv/bin/activate
+export PYTHONPATH=src
+make run-etl-transform
+```
+
+This writes transformed records to `data/processed/transformed_documents.ndjson`.
+
 ## Local Infra with Docker Compose
 
 Start the full local stack (API, UI, Redis, MLflow, Prometheus, Grafana):
@@ -97,7 +107,7 @@ Stop services:
 
 ```bash
 docker compose down
-```
+```chunking and retrieval-focused document shaping
 
 ## GitHub Actions
 
