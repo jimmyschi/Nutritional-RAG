@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     pinecone_index: str | None = None
     pinecone_namespace: str = "nutrition"
     redis_url: str = "redis://localhost:6379/0"
+    query_cache_ttl_seconds: int = 600
+    rerank_candidate_multiplier: int = 3
     mlflow_tracking_uri: str = "http://localhost:5001"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

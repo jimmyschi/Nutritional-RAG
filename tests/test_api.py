@@ -33,6 +33,7 @@ def test_query_returns_answer_and_citations(monkeypatch) -> None:
     monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
     monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")
     monkeypatch.setattr(api_module.settings, "pinecone_index", "test-index")
+    monkeypatch.setattr(api_module.settings, "rerank_candidate_multiplier", 1)
 
     class _EmbeddingData:
         embedding = [0.1, 0.2, 0.3]
@@ -99,8 +100,36 @@ def test_query_returns_answer_and_citations(monkeypatch) -> None:
 
     body = response.json()
     assert "protein" in body["answer"].lower()
+    assert body["cache_hit"] is False
     assert len(body["citations"]) == 1
     assert body["citations"][0]["source_id"] == "exercise-physiology-book-pdf"
+
+
+def test_query_uses_cache_when_available(monkeypatch) -> None:
+    monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
+    monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")
+    monkeypatch.setattr(api_module.settings, "pinecone_index", "test-index")
+
+    cached = api_module.QueryResponse(
+        answer="cached answer",
+        citations=[api_module.Citation(vector_id="vec-1", score=0.99)],
+        cache_hit=True,
+    )
+
+    monkeypatch.setattr(api_module, "_get_redis_client", lambda: object())
+    monkeypatch.setattr(api_module, "_cache_key", lambda request: "cache:key")
+    monkeypatch.setattr(api_module, "_read_query_cache", lambda *args: cached)
+
+    def _fail_openai():
+        raise AssertionError("OpenAI should not be called when cache hits")
+
+    monkeypatch.setattr(api_module, "_get_openai_client", _fail_openai)
+
+    response = client.post("/query", json={"question": "cached question", "top_k": 5})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["answer"] == "cached answer"
+    assert body["cache_hit"] is True
 
 
 def test_query_returns_503_when_rag_settings_missing(monkeypatch) -> None:

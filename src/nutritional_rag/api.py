@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -30,6 +33,7 @@ class Citation(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     citations: list[Citation]
+    cache_hit: bool = False
 
 
 def _require_rag_settings() -> None:
@@ -62,6 +66,23 @@ def _get_pinecone_index() -> Any:
     return client.Index(settings.pinecone_index)
 
 
+def _get_redis_client() -> Any | None:
+    try:
+        import redis
+    except ModuleNotFoundError:
+        return None
+
+    try:
+        return redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+    except Exception:
+        return None
+
+
 def _embed_query(openai_client: Any, question: str) -> list[float]:
     response = openai_client.embeddings.create(
         model=settings.openai_embedding_model,
@@ -76,6 +97,81 @@ def _extract_matches(query_result: Any) -> list[Any]:
     if isinstance(query_result, dict):
         return list(query_result.get("matches", []))
     return []
+
+
+def _tokenize(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def _match_text(match: Any) -> str:
+    if isinstance(match, dict):
+        metadata = match.get("metadata", {}) or {}
+    else:
+        metadata = getattr(match, "metadata", {}) or {}
+    return str(metadata.get("text", ""))
+
+
+def _match_score(match: Any) -> float:
+    if isinstance(match, dict):
+        return float(match.get("score", 0.0))
+    return float(getattr(match, "score", 0.0))
+
+
+def _rerank_matches(question: str, matches: list[Any], top_k: int) -> list[Any]:
+    question_tokens = _tokenize(question)
+    if not question_tokens:
+        return matches[:top_k]
+
+    ranked: list[tuple[float, Any]] = []
+    for match in matches:
+        text_tokens = _tokenize(_match_text(match))
+        overlap = len(question_tokens & text_tokens)
+        lexical = overlap / max(1, len(question_tokens))
+        pinecone_sim = _match_score(match)
+        blended = 0.8 * pinecone_sim + 0.2 * lexical
+        ranked.append((blended, match))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [item[1] for item in ranked[:top_k]]
+
+
+def _cache_key(request: QueryRequest) -> str:
+    payload = f"{settings.pinecone_namespace}:{request.top_k}:{request.question.strip().lower()}"
+    digest = hashlib.sha256(payload.encode("utf-8", errors="ignore")).hexdigest()[:24]
+    return f"query:{digest}"
+
+
+def _read_query_cache(redis_client: Any, cache_key: str) -> QueryResponse | None:
+    if redis_client is None:
+        return None
+
+    try:
+        cached = redis_client.get(cache_key)
+    except Exception:
+        return None
+
+    if not cached:
+        return None
+
+    try:
+        payload = json.loads(cached)
+        payload["cache_hit"] = True
+        return QueryResponse.model_validate(payload)
+    except Exception:
+        return None
+
+
+def _write_query_cache(redis_client: Any, cache_key: str, response: QueryResponse) -> None:
+    if redis_client is None:
+        return
+
+    payload = response.model_dump()
+    payload["cache_hit"] = False
+
+    try:
+        redis_client.setex(cache_key, settings.query_cache_ttl_seconds, json.dumps(payload))
+    except Exception:
+        return
 
 
 def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]]:
@@ -158,28 +254,40 @@ def query(request: QueryRequest) -> QueryResponse:
     _require_rag_settings()
 
     try:
+        redis_client = _get_redis_client()
+        key = _cache_key(request)
+        cached = _read_query_cache(redis_client, key)
+        if cached is not None:
+            return cached
+
         openai_client = _get_openai_client()
         pinecone_index = _get_pinecone_index()
 
         query_vector = _embed_query(openai_client, request.question)
+        candidate_top_k = request.top_k * max(1, settings.rerank_candidate_multiplier)
         query_result = pinecone_index.query(
             vector=query_vector,
-            top_k=request.top_k,
+            top_k=candidate_top_k,
             include_metadata=True,
             namespace=settings.pinecone_namespace,
         )
 
-        matches = _extract_matches(query_result)
+        candidate_matches = _extract_matches(query_result)
+        matches = _rerank_matches(request.question, candidate_matches, request.top_k)
         context, citations = _build_context_from_matches(matches)
 
         if not context:
-            return QueryResponse(
+            response = QueryResponse(
                 answer="I could not find relevant context in the current knowledge base.",
                 citations=[],
             )
+            _write_query_cache(redis_client, key, response)
+            return response
 
         answer = _generate_answer(openai_client, request.question, context)
-        return QueryResponse(answer=answer, citations=citations)
+        response = QueryResponse(answer=answer, citations=citations)
+        _write_query_cache(redis_client, key, response)
+        return response
     except HTTPException:
         raise
     except Exception as error:
