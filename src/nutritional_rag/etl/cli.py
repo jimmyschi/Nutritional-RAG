@@ -6,18 +6,24 @@ import json
 from nutritional_rag.etl.models import (
     ChunkPipelineConfig,
     ExtractPipelineConfig,
+    LoadPipelineConfig,
     TransformPipelineConfig,
 )
 from nutritional_rag.etl.pipeline import (
     run_chunk_pipeline,
     run_extract_pipeline,
+    run_load_pipeline,
     run_transform_pipeline,
 )
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Nutritional RAG ETL stages")
-    parser.add_argument("--stage", choices=["extract", "transform", "chunk"], default="extract")
+    parser.add_argument(
+        "--stage",
+        choices=["extract", "transform", "chunk", "load"],
+        default="extract",
+    )
     parser.add_argument(
         "--config",
         required=False,
@@ -57,6 +63,32 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=50,
         help="When stage=chunk, overlap between consecutive chunks in tokens",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        required=False,
+        help="When stage=load, override OpenAI embedding model",
+    )
+    parser.add_argument(
+        "--pinecone-index",
+        required=False,
+        help="When stage=load, override Pinecone index",
+    )
+    parser.add_argument(
+        "--pinecone-namespace",
+        required=False,
+        help="When stage=load, override Pinecone namespace",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=100,
+        help="When stage=load, number of chunks embedded/upserted per batch",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="When stage=load, validate/prepare vectors without external API calls",
     )
     return parser.parse_args()
 
@@ -117,6 +149,30 @@ def _run_chunk(
     print(summary.model_dump_json(indent=2))
 
 
+def _run_load(
+    input_path: str,
+    embedding_model: str | None,
+    pinecone_index: str | None,
+    pinecone_namespace: str | None,
+    batch_size: int,
+    dry_run: bool,
+) -> None:
+    payload = {
+        "input_path": input_path,
+        "embedding_model": embedding_model,
+        "pinecone_index": pinecone_index,
+        "pinecone_namespace": pinecone_namespace,
+        "batch_size": batch_size,
+        "dry_run": dry_run,
+    }
+
+    config = LoadPipelineConfig.model_validate(payload)
+    summary = run_load_pipeline(config)
+
+    print("Load pipeline finished")
+    print(summary.model_dump_json(indent=2))
+
+
 def main() -> None:
     args = _parse_args()
 
@@ -128,7 +184,18 @@ def main() -> None:
         _run_transform(args.input, args.output, args.nutrition_only, args.min_nutrition_score)
         return
 
-    _run_chunk(args.input, args.output, args.chunk_size, args.chunk_overlap)
+    if args.stage == "chunk":
+        _run_chunk(args.input, args.output, args.chunk_size, args.chunk_overlap)
+        return
+
+    _run_load(
+        input_path=args.input,
+        embedding_model=args.embedding_model,
+        pinecone_index=args.pinecone_index,
+        pinecone_namespace=args.pinecone_namespace,
+        batch_size=args.batch_size,
+        dry_run=args.dry_run,
+    )
 
 
 if __name__ == "__main__":

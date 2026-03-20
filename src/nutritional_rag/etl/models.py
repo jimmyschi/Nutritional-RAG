@@ -88,3 +88,21 @@ class ChunkRunSummary(BaseModel):
     total_documents: int
     total_chunks: int
     avg_chunks_per_document: float
+
+
+class LoadPipelineConfig(BaseModel):
+    input_path: str = "data/processed/chunks.ndjson"
+    embedding_model: str | None = None
+    pinecone_index: str | None = None
+    pinecone_namespace: str | None = None
+    batch_size: int = 100
+    dry_run: bool = False
+
+
+class LoadRunSummary(BaseModel):
+    input_path: str
+    total_chunks: int
+    embedded_chunks: int
+    upserted_vectors: int
+    failed_chunks: int
+    dry_run: bool

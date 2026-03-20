@@ -93,6 +93,31 @@ make run-etl-transform
 This writes transformed records to `data/processed/transformed_documents.ndjson`.
 By default, this stage applies nutrition-only filtering with keyword/rule scoring.
 
+Run the chunk stage:
+
+```bash
+source .venv/bin/activate
+export PYTHONPATH=src
+make run-etl-chunk
+```
+
+This writes chunked records to `data/processed/chunks.ndjson`.
+
+Run the load stage (OpenAI embeddings + Pinecone upsert):
+
+```bash
+source .venv/bin/activate
+export PYTHONPATH=src
+# Uses OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX from .env
+make run-etl-load
+```
+
+Use dry-run for local validation without external API calls:
+
+```bash
+python -m nutritional_rag.etl.cli --stage load --input data/processed/chunks.ndjson --dry-run
+```
+
 ## Local Infra with Docker Compose
 
 Start the full local stack (API, UI, Redis, MLflow, Prometheus, Grafana):

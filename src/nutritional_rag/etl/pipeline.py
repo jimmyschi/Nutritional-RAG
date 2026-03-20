@@ -4,11 +4,23 @@ from pathlib import Path
 
 from nutritional_rag.etl.chunk import chunk_document
 from nutritional_rag.etl.extract import extract_source
+from nutritional_rag.etl.load import (
+    batch_iterable,
+    chunk_to_metadata,
+    deterministic_vector_id,
+    embed_texts,
+    get_openai_client,
+    get_pinecone_index,
+    iter_chunk_documents,
+    resolve_load_config,
+)
 from nutritional_rag.etl.models import (
     ChunkPipelineConfig,
     ChunkRunSummary,
     ExtractPipelineConfig,
     ExtractRunSummary,
+    LoadPipelineConfig,
+    LoadRunSummary,
     RawDocument,
     TransformedDocument,
     TransformPipelineConfig,
@@ -126,4 +138,80 @@ def run_chunk_pipeline(config: ChunkPipelineConfig) -> ChunkRunSummary:
         total_documents=total_documents,
         total_chunks=total_chunks,
         avg_chunks_per_document=avg,
+    )
+
+
+def run_load_pipeline(config: LoadPipelineConfig) -> LoadRunSummary:
+    resolved_config = resolve_load_config(config)
+
+    chunks = list(iter_chunk_documents(resolved_config.input_path))
+    total_chunks = len(chunks)
+    if total_chunks == 0:
+        return LoadRunSummary(
+            input_path=resolved_config.input_path,
+            total_chunks=0,
+            embedded_chunks=0,
+            upserted_vectors=0,
+            failed_chunks=0,
+            dry_run=resolved_config.dry_run,
+        )
+
+    if not resolved_config.embedding_model:
+        raise ValueError("Embedding model is required for load stage")
+
+    if not resolved_config.dry_run and not resolved_config.pinecone_index:
+        raise ValueError("Pinecone index is required for load stage unless --dry-run is set")
+
+    embedded_chunks = 0
+    upserted_vectors = 0
+    failed_chunks = 0
+
+    openai_client = None if resolved_config.dry_run else get_openai_client()
+    index = None
+    if not resolved_config.dry_run:
+        index = get_pinecone_index(resolved_config.pinecone_index or "")
+
+    for chunk_batch in batch_iterable(chunks, resolved_config.batch_size):
+        texts = [chunk.text for chunk in chunk_batch]
+        vector_ids = [deterministic_vector_id(chunk) for chunk in chunk_batch]
+
+        if resolved_config.dry_run:
+            embedded_chunks += len(chunk_batch)
+            upserted_vectors += len(chunk_batch)
+            continue
+
+        try:
+            embeddings = embed_texts(
+                openai_client=openai_client,
+                texts=texts,
+                embedding_model=resolved_config.embedding_model,
+            )
+
+            vectors = []
+            for chunk, vector_id, embedding in zip(
+                chunk_batch, vector_ids, embeddings, strict=True
+            ):
+                vectors.append(
+                    {
+                        "id": vector_id,
+                        "values": embedding,
+                        "metadata": chunk_to_metadata(chunk),
+                    }
+                )
+
+            index.upsert(vectors=vectors, namespace=resolved_config.pinecone_namespace)
+            embedded_chunks += len(chunk_batch)
+            upserted_vectors += len(chunk_batch)
+        except Exception as exc:
+            print(f"[load] batch failed: {type(exc).__name__}: {exc}")
+            failed_chunks += len(chunk_batch)
+            break  # surface first failure immediately
+
+    return LoadRunSummary(
+        input_path=resolved_config.input_path,
+        total_chunks=total_chunks,
+        embedded_chunks=embedded_chunks,
+        upserted_vectors=upserted_vectors,
+        failed_chunks=failed_chunks,
+        dry_run=resolved_config.dry_run,
     )
