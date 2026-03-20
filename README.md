@@ -134,10 +134,59 @@ curl -X POST http://localhost:8000/query \
 	-d '{"question":"How are carbohydrates used in endurance exercise?","top_k":5}'
 ```
 
-## Local Infra with Docker Compose
+## MLflow Query Tracking and Evaluation
 
-Start the full local stack (API, UI, Redis, MLflow, Prometheus, Grafana):
+Query-time MLflow logging is supported directly in the API path (best-effort, non-blocking).
 
+Environment variables:
+
+- `MLFLOW_TRACKING_URI` (default: `http://localhost:5001`)
+- `MLFLOW_EXPERIMENT_NAME` (default: `nutritional-rag-query`)
+- `MLFLOW_LOG_QUERIES` (default: `true`)
+
+Install ML dependencies if needed:
+
+```bash
+pip install -e ".[ml]"
+```
+
+Run a lightweight evaluation set against the live API and log aggregated metrics to MLflow:
+
+```bash
+python scripts/evaluate_rag.py \
+	--api-base-url http://127.0.0.1:8001 \
+	--eval-set data/eval/nutrition_eval_set.ndjson \
+  --rerank-candidate-multiplier 3 \
+  --skip-generation \
+  --mlflow-tracking-uri http://localhost:5001 \
+  --mlflow-experiment nutritional-rag-eval
+```
+
+Or use:
+
+```bash
+make run-eval
+```
+
+Run a parameter sweep and log one MLflow run per configuration:
+
+```bash
+python scripts/sweep_eval.py \
+  --api-base-url http://127.0.0.1:8001 \
+  --eval-set data/eval/nutrition_eval_set.ndjson \
+  --top-k-values 3,5,8 \
+  --rerank-candidate-multipliers 1,2,3 \
+  --mlflow-tracking-uri http://localhost:5001 \
+  --mlflow-experiment nutritional-rag-sweep
+```
+
+The sweep script runs in retrieval-only mode so you can compare retrieval latency and citation quality
+without waiting for full answer generation on every configuration.
+
+Or use:
+
+```bash
+make run-eval-sweep
 ```bash
 cp .env.example .env
 docker compose up --build -d

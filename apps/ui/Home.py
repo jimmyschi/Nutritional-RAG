@@ -7,8 +7,7 @@ import streamlit as st
 def main() -> None:
     st.set_page_config(page_title="Nutritional RAG", layout="wide")
 
-    default_api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
-    api_base_url = st.sidebar.text_input("API base URL", value=default_api_base_url).rstrip("/")
+    api_base_url = os.getenv("API_BASE_URL", "http://localhost:8001").rstrip("/")
 
     st.title("Nutritional RAG")
     st.caption("Ask nutrition questions and inspect grounded citations from your vector index.")
@@ -67,10 +66,10 @@ def main() -> None:
 
         page_text = f"page {page}" if page is not None else "page n/a"
         chunk_text = f"chunk {chunk_index}" if chunk_index is not None else "chunk n/a"
-        title_text = f" - {title}" if title else ""
+        title_text = f"{title}" if title else source
 
         st.markdown(
-            f"{index}. **{source}**{title_text} | {page_text} | {chunk_text} | score={score:.4f}"
+            f"{index}. **{title_text}** | {page_text} | {chunk_text} | score={score:.4f}"
         )
         st.caption(doc)
 

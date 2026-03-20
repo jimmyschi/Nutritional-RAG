@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     query_cache_ttl_seconds: int = 600
     rerank_candidate_multiplier: int = 3
     mlflow_tracking_uri: str = "http://localhost:5001"
+    mlflow_experiment_name: str = "nutritional-rag-query"
+    mlflow_log_queries: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

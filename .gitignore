@@ -21,7 +21,9 @@ build/
 
 data/raw/
 data/processed/
-data/eval/
+data/eval/*
+!data/eval/.gitkeep
+!data/eval/nutrition_eval_set.ndjson
 models/artifacts/
 mlruns/
 

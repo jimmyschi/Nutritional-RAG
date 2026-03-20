@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -15,9 +16,20 @@ app = FastAPI(title=settings.project_name, version="0.1.0")
 app.mount("/metrics", make_asgi_app())
 
 
+SOURCE_TITLE_OVERRIDES: dict[str, str] = {
+    "exercise-physiology-book-pdf": (
+        "Exercise Physiology: Human Bioenergetics and Its Applications "
+        "(Brooks, Fahey, Baldwin; 4th Edition, 2004)"
+    )
+}
+
+
 class QueryRequest(BaseModel):
     question: str = Field(min_length=3)
     top_k: int = Field(default=5, ge=1, le=20)
+    rerank_candidate_multiplier: int | None = Field(default=None, ge=1, le=20)
+    use_cache: bool = True
+    generate_answer: bool = True
 
 
 class Citation(BaseModel):
@@ -135,8 +147,16 @@ def _rerank_matches(question: str, matches: list[Any], top_k: int) -> list[Any]:
     return [item[1] for item in ranked[:top_k]]
 
 
+def _effective_rerank_candidate_multiplier(request: QueryRequest) -> int:
+    return request.rerank_candidate_multiplier or settings.rerank_candidate_multiplier
+
+
 def _cache_key(request: QueryRequest) -> str:
-    payload = f"{settings.pinecone_namespace}:{request.top_k}:{request.question.strip().lower()}"
+    payload = (
+        f"{settings.pinecone_namespace}:{request.top_k}:"
+        f"{_effective_rerank_candidate_multiplier(request)}:"
+        f"{request.question.strip().lower()}"
+    )
     digest = hashlib.sha256(payload.encode("utf-8", errors="ignore")).hexdigest()[:24]
     return f"query:{digest}"
 
@@ -174,6 +194,81 @@ def _write_query_cache(redis_client: Any, cache_key: str, response: QueryRespons
         return
 
 
+def _get_mlflow_client() -> Any | None:
+    if not settings.mlflow_log_queries:
+        return None
+
+    try:
+        import mlflow
+    except ModuleNotFoundError:
+        return None
+
+    return mlflow
+
+
+def _log_query_to_mlflow(
+    request: QueryRequest,
+    response: QueryResponse | None,
+    *,
+    latency_ms: float,
+    candidate_count: int,
+    status: str,
+    error_detail: str | None = None,
+) -> None:
+    mlflow = _get_mlflow_client()
+    if mlflow is None or not settings.mlflow_tracking_uri:
+        return
+
+    try:
+        mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+        mlflow.set_experiment(settings.mlflow_experiment_name)
+
+        with mlflow.start_run(run_name="query"):
+            mlflow.log_params(
+                {
+                    "top_k": request.top_k,
+                    "question_length_chars": len(request.question),
+                    "openai_model": settings.openai_model,
+                    "embedding_model": settings.openai_embedding_model,
+                    "namespace": settings.pinecone_namespace,
+                    "rerank_candidate_multiplier": _effective_rerank_candidate_multiplier(request),
+                    "use_cache": request.use_cache,
+                    "generate_answer": request.generate_answer,
+                    "cache_ttl_seconds": settings.query_cache_ttl_seconds,
+                }
+            )
+            mlflow.log_metrics(
+                {
+                    "latency_ms": latency_ms,
+                    "candidate_count": float(candidate_count),
+                    "status_ok": 1.0 if status == "ok" else 0.0,
+                }
+            )
+            mlflow.set_tags(
+                {
+                    "status": status,
+                    "app_env": settings.app_env,
+                }
+            )
+
+            if response is not None:
+                scores = [citation.score for citation in response.citations]
+                mlflow.log_metrics(
+                    {
+                        "cache_hit": 1.0 if response.cache_hit else 0.0,
+                        "citation_count": float(len(response.citations)),
+                        "mean_citation_score": (sum(scores) / len(scores)) if scores else 0.0,
+                        "max_citation_score": max(scores) if scores else 0.0,
+                        "min_citation_score": min(scores) if scores else 0.0,
+                    }
+                )
+
+            if error_detail:
+                mlflow.set_tag("error_detail", error_detail[:500])
+    except Exception:
+        return
+
+
 def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]]:
     context_parts: list[str] = []
     citations: list[Citation] = []
@@ -193,13 +288,16 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
             continue
 
         context_parts.append(f"[{idx}] {text}")
+        source_id = metadata.get("source_id")
+        resolved_title = metadata.get("title") or SOURCE_TITLE_OVERRIDES.get(str(source_id or ""))
+
         citations.append(
             Citation(
                 vector_id=vector_id,
                 score=score,
-                source_id=metadata.get("source_id"),
+                source_id=source_id,
                 document_id=metadata.get("document_id"),
-                title=metadata.get("title") or None,
+                title=resolved_title or None,
                 page_number=metadata.get("page_number"),
                 chunk_index=metadata.get("chunk_index"),
             )
@@ -252,19 +350,30 @@ def readiness() -> dict[str, bool | str]:
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
     _require_rag_settings()
+    started_at = time.perf_counter()
+    candidate_count = 0
 
     try:
         redis_client = _get_redis_client()
         key = _cache_key(request)
-        cached = _read_query_cache(redis_client, key)
-        if cached is not None:
-            return cached
+        if request.use_cache:
+            cached = _read_query_cache(redis_client, key)
+            if cached is not None:
+                _log_query_to_mlflow(
+                    request,
+                    cached,
+                    latency_ms=(time.perf_counter() - started_at) * 1000,
+                    candidate_count=0,
+                    status="ok",
+                )
+                return cached
 
         openai_client = _get_openai_client()
         pinecone_index = _get_pinecone_index()
 
         query_vector = _embed_query(openai_client, request.question)
-        candidate_top_k = request.top_k * max(1, settings.rerank_candidate_multiplier)
+        effective_multiplier = max(1, _effective_rerank_candidate_multiplier(request))
+        candidate_top_k = request.top_k * effective_multiplier
         query_result = pinecone_index.query(
             vector=query_vector,
             top_k=candidate_top_k,
@@ -273,6 +382,7 @@ def query(request: QueryRequest) -> QueryResponse:
         )
 
         candidate_matches = _extract_matches(query_result)
+        candidate_count = len(candidate_matches)
         matches = _rerank_matches(request.question, candidate_matches, request.top_k)
         context, citations = _build_context_from_matches(matches)
 
@@ -281,14 +391,41 @@ def query(request: QueryRequest) -> QueryResponse:
                 answer="I could not find relevant context in the current knowledge base.",
                 citations=[],
             )
-            _write_query_cache(redis_client, key, response)
+            if request.use_cache:
+                _write_query_cache(redis_client, key, response)
+            _log_query_to_mlflow(
+                request,
+                response,
+                latency_ms=(time.perf_counter() - started_at) * 1000,
+                candidate_count=candidate_count,
+                status="ok",
+            )
             return response
 
-        answer = _generate_answer(openai_client, request.question, context)
+        if request.generate_answer:
+            answer = _generate_answer(openai_client, request.question, context)
+        else:
+            answer = "Generation skipped for retrieval-focused evaluation."
         response = QueryResponse(answer=answer, citations=citations)
-        _write_query_cache(redis_client, key, response)
+        if request.use_cache:
+            _write_query_cache(redis_client, key, response)
+        _log_query_to_mlflow(
+            request,
+            response,
+            latency_ms=(time.perf_counter() - started_at) * 1000,
+            candidate_count=candidate_count,
+            status="ok",
+        )
         return response
     except HTTPException:
         raise
     except Exception as error:
+        _log_query_to_mlflow(
+            request,
+            None,
+            latency_ms=(time.perf_counter() - started_at) * 1000,
+            candidate_count=candidate_count,
+            status="error",
+            error_detail=str(error),
+        )
         raise HTTPException(status_code=500, detail=f"Query failed: {error}") from error
