@@ -67,6 +67,7 @@ def chunk_to_metadata(chunk: ChunkedDocument) -> dict[str, Any]:
         "chunk_index": chunk.chunk_index,
         "chunk_total": chunk.chunk_total,
         "title": chunk.title or "",
+        "text": chunk.text,
     }
     metadata.update(chunk.metadata)
     return metadata

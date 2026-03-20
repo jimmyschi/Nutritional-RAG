@@ -205,7 +205,6 @@ def run_load_pipeline(config: LoadPipelineConfig) -> LoadRunSummary:
         except Exception as exc:
             print(f"[load] batch failed: {type(exc).__name__}: {exc}")
             failed_chunks += len(chunk_batch)
-            break  # surface first failure immediately
 
     return LoadRunSummary(
         input_path=resolved_config.input_path,

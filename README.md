@@ -118,6 +118,22 @@ Use dry-run for local validation without external API calls:
 python -m nutritional_rag.etl.cli --stage load --input data/processed/chunks.ndjson --dry-run
 ```
 
+Query your loaded knowledge base:
+
+```bash
+source .venv/bin/activate
+export PYTHONPATH=src
+uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Then in another shell:
+
+```bash
+curl -X POST http://localhost:8000/query \
+	-H "Content-Type: application/json" \
+	-d '{"question":"How are carbohydrates used in endurance exercise?","top_k":5}'
+```
+
 ## Local Infra with Docker Compose
 
 Start the full local stack (API, UI, Redis, MLflow, Prometheus, Grafana):
