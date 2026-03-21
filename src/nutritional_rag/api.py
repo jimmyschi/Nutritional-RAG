@@ -427,17 +427,17 @@ def _pubmed_url_from_metadata(metadata: dict[str, Any]) -> str | None:
 
 
 def _youtube_url_from_metadata(metadata: dict[str, Any]) -> str | None:
-    source_id = str(metadata.get("source_id", ""))
-    if "youtube" not in source_id.lower():
-        return None
-
-    for key in ("video_url", "source", "url"):
+    for key in ("video_url", "source_location", "source", "url"):
         value = metadata.get(key)
         if not isinstance(value, str):
             continue
         url = value.strip()
         if "youtube.com/watch" in url or "youtu.be/" in url:
             return url
+
+    video_id = metadata.get("video_id")
+    if isinstance(video_id, str) and video_id.strip():
+        return f"https://www.youtube.com/watch?v={video_id.strip()}"
 
     return None
 
