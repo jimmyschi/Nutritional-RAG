@@ -4,7 +4,6 @@ import csv
 import hashlib
 import json
 from html.parser import HTMLParser
-from io import BytesIO
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -165,26 +164,29 @@ def _extract_text(source: ExtractionSource) -> list[RawDocument]:
 
 def _extract_pdf(source: ExtractionSource) -> list[RawDocument]:
     try:
-        from pypdf import PdfReader
+        from langchain_community.document_loaders import PyPDFLoader
     except ModuleNotFoundError as error:
         raise ModuleNotFoundError(
-            "PDF extraction requires 'pypdf'. Install with: pip install pypdf"
+            "PDF extraction requires 'langchain-community' and 'pypdf'. "
+            "Install with: pip install langchain-community pypdf"
         ) from error
 
-    pdf_bytes = _read_location(source.location)
-    reader = PdfReader(BytesIO(pdf_bytes))
-    page_count = len(reader.pages)
+    loader = PyPDFLoader(source.location)
+    lc_pages = loader.load()
+    page_count = len(lc_pages)
     base_title = source.metadata.get("title") if source.metadata else None
 
     documents: list[RawDocument] = []
-    for index, page in enumerate(reader.pages):
-        text = (page.extract_text() or "").strip()
+    for lc_doc in lc_pages:
+        text = lc_doc.page_content.strip()
         if not text:
             continue
 
-        document_id = _stable_document_id(source.source_id, index, text)
+        # LangChain stores 0-based page index in metadata["page"]
+        page_number = lc_doc.metadata.get("page", 0) + 1
+        document_id = _stable_document_id(source.source_id, page_number - 1, text)
         metadata = {
-            "page_number": index + 1,
+            "page_number": page_number,
             "page_count": page_count,
             **source.metadata,
         }
