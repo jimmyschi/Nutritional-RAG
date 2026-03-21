@@ -181,6 +181,43 @@ def _match_score(match: Any) -> float:
     return float(getattr(match, "score", 0.0))
 
 
+def _match_source_id(match: Any) -> str:
+    if isinstance(match, dict):
+        metadata = match.get("metadata", {}) or {}
+    else:
+        metadata = getattr(match, "metadata", {}) or {}
+    return str(metadata.get("source_id", ""))
+
+
+def _select_diverse_top_k(ranked_matches: list[Any], top_k: int) -> list[Any]:
+    if top_k <= 1:
+        return ranked_matches[:top_k]
+
+    selected: list[Any] = []
+    seen_sources: set[str] = set()
+
+    # First pass: take the best match from each source in ranked order.
+    for match in ranked_matches:
+        source_id = _match_source_id(match)
+        if source_id in seen_sources:
+            continue
+        selected.append(match)
+        if source_id:
+            seen_sources.add(source_id)
+        if len(selected) >= top_k:
+            return selected
+
+    # Second pass: fill remaining slots by overall rank.
+    for match in ranked_matches:
+        if match in selected:
+            continue
+        selected.append(match)
+        if len(selected) >= top_k:
+            break
+
+    return selected
+
+
 def _rerank_matches(question: str, matches: list[Any], top_k: int) -> list[Any]:
     question_tokens = _tokenize(question)
     if not question_tokens:
@@ -196,7 +233,8 @@ def _rerank_matches(question: str, matches: list[Any], top_k: int) -> list[Any]:
         ranked.append((blended, match))
 
     ranked.sort(key=lambda item: item[0], reverse=True)
-    return [item[1] for item in ranked[:top_k]]
+    reranked_matches = [item[1] for item in ranked]
+    return _select_diverse_top_k(reranked_matches, top_k)
 
 
 def _effective_rerank_candidate_multiplier(request: QueryRequest) -> int:

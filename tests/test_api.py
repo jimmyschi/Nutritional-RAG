@@ -280,6 +280,44 @@ def test_query_skips_cache_and_uses_request_rerank_override(monkeypatch) -> None
     assert response.json()["cache_hit"] is False
 
 
+def test_rerank_matches_preserves_multiple_sources_when_available() -> None:
+    matches = [
+        {
+            "id": "book-1",
+            "score": 0.95,
+            "metadata": {
+                "text": "Creatine performance recovery athletes training.",
+                "source_id": "exercise-physiology-book-pdf",
+            },
+        },
+        {
+            "id": "book-2",
+            "score": 0.93,
+            "metadata": {
+                "text": "Creatine performance recovery athletes training.",
+                "source_id": "exercise-physiology-book-pdf",
+            },
+        },
+        {
+            "id": "pubmed-1",
+            "score": 0.70,
+            "metadata": {
+                "text": "Creatine supplementation performance athletes randomized trial.",
+                "source_id": "pubmed-sports-nutrition",
+            },
+        },
+    ]
+
+    reranked = api_module._rerank_matches(
+        "Does creatine supplementation help athlete performance?",
+        matches,
+        top_k=2,
+    )
+
+    source_ids = {match["metadata"]["source_id"] for match in reranked}
+    assert source_ids == {"exercise-physiology-book-pdf", "pubmed-sports-nutrition"}
+
+
 def test_query_returns_503_when_rag_settings_missing(monkeypatch) -> None:
     monkeypatch.setattr(api_module.settings, "openai_api_key", None)
     monkeypatch.setattr(api_module.settings, "pinecone_api_key", None)
