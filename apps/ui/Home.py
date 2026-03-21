@@ -75,14 +75,20 @@ def main() -> None:
         chunk_index = citation.get("chunk_index")
         score = citation.get("score")
         title = citation.get("title")
+        pubmed_url = citation.get("pubmed_url")
 
         page_text = f"page {page}" if page is not None else "page n/a"
         chunk_text = f"chunk {chunk_index}" if chunk_index is not None else "chunk n/a"
         title_text = f"{title}" if title else source
+        source_badge = ""
+        if pubmed_url:
+            source_badge = f" | [PubMed]({pubmed_url})"
 
-        st.markdown(
-            f"{index}. **{title_text}** | {page_text} | {chunk_text} | score={score:.4f}"
+        citation_line = (
+            f"{index}. **{title_text}** | {page_text} | {chunk_text} "
+            f"| score={score:.4f}{source_badge}"
         )
+        st.markdown(citation_line)
         st.caption(doc)
 
 

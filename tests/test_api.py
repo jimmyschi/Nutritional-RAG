@@ -105,6 +105,74 @@ def test_query_returns_answer_and_citations(monkeypatch) -> None:
     assert body["citations"][0]["source_id"] == "exercise-physiology-book-pdf"
 
 
+def test_query_includes_pubmed_url_when_uid_present(monkeypatch) -> None:
+    monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
+    monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")
+    monkeypatch.setattr(api_module.settings, "pinecone_index", "test-index")
+    monkeypatch.setattr(api_module.settings, "rerank_candidate_multiplier", 1)
+
+    class _EmbeddingData:
+        embedding = [0.1, 0.2, 0.3]
+
+    class _EmbeddingsResponse:
+        data = [_EmbeddingData()]
+
+    class _Message:
+        content = "Creatine evidence summary."
+
+    class _Choice:
+        message = _Message()
+
+    class _ChatResponse:
+        choices = [_Choice()]
+
+    class _EmbeddingsAPI:
+        def create(self, model: str, input: list[str]):
+            return _EmbeddingsResponse()
+
+    class _CompletionsAPI:
+        def create(self, **kwargs):
+            return _ChatResponse()
+
+    class _ChatAPI:
+        completions = _CompletionsAPI()
+
+    class _OpenAIClient:
+        embeddings = _EmbeddingsAPI()
+        chat = _ChatAPI()
+
+    class _PineconeIndex:
+        def query(self, **kwargs):
+            return {
+                "matches": [
+                    {
+                        "id": "vec-pubmed",
+                        "score": 0.8,
+                        "metadata": {
+                            "text": "Creatine supplementation may aid repeated sprint performance.",
+                            "source_id": "pubmed-sports-nutrition",
+                            "document_id": "doc-pubmed-1",
+                            "title": "Creatine and repeated sprint performance",
+                            "uid": "12345678",
+                            "chunk_index": 0,
+                        },
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(api_module, "_get_openai_client", lambda: _OpenAIClient())
+    monkeypatch.setattr(api_module, "_get_pinecone_index", lambda: _PineconeIndex())
+
+    response = client.post(
+        "/query",
+        json={"question": "Does creatine improve sprint performance?", "top_k": 3},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["citations"]) == 1
+    assert body["citations"][0]["pubmed_url"] == "https://pubmed.ncbi.nlm.nih.gov/12345678/"
+
+
 def test_query_uses_cache_when_available(monkeypatch) -> None:
     monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
     monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")

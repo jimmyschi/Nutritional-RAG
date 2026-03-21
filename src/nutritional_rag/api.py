@@ -90,6 +90,7 @@ class Citation(BaseModel):
     title: str | None = None
     page_number: int | None = None
     chunk_index: int | None = None
+    pubmed_url: str | None = None
 
 
 class QueryResponse(BaseModel):
@@ -340,6 +341,7 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
         context_parts.append(f"[{idx}] {text}")
         source_id = metadata.get("source_id")
         resolved_title = metadata.get("title") or SOURCE_TITLE_OVERRIDES.get(str(source_id or ""))
+        pubmed_url = _pubmed_url_from_metadata(metadata)
 
         citations.append(
             Citation(
@@ -350,10 +352,27 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
                 title=resolved_title or None,
                 page_number=metadata.get("page_number"),
                 chunk_index=metadata.get("chunk_index"),
+                pubmed_url=pubmed_url,
             )
         )
 
     return "\n\n".join(context_parts), citations
+
+
+def _pubmed_url_from_metadata(metadata: dict[str, Any]) -> str | None:
+    source_id = str(metadata.get("source_id", ""))
+    if "pubmed" not in source_id.lower():
+        return None
+
+    for key in ("uid", "UID", "pmid", "PMID"):
+        value = metadata.get(key)
+        if value in (None, ""):
+            continue
+        identifier = str(value).strip()
+        if identifier:
+            return f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"
+
+    return None
 
 
 def _generate_answer(openai_client: Any, question: str, context: str) -> str:
