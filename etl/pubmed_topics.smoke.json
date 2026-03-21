@@ -1,0 +1,23 @@
+{
+  "topics": [
+    "magnesium blood pressure adults",
+    "vitamin d insulin resistance adults"
+  ],
+  "load_max_docs": 2,
+  "sleep_seconds": 2,
+  "failure_sleep_seconds": 5,
+  "output_raw": "/tmp/pubmed_topics_smoke_extracted.ndjson",
+  "output_transformed": "/tmp/pubmed_topics_smoke_transformed.ndjson",
+  "output_chunks": "/tmp/pubmed_topics_smoke_chunks.ndjson",
+  "nutrition_only": true,
+  "min_nutrition_score": 2,
+  "load_to_pinecone": false,
+  "batch_size": 25,
+  "source_prefix": "pubmed-topic",
+  "source_name": "PubMed",
+  "source_license": "public-abstracts-check-terms",
+  "base_metadata": {
+    "domain": "general-nutrition",
+    "source_type": "biomedical-literature"
+  }
+}

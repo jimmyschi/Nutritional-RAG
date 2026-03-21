@@ -91,6 +91,24 @@ export PYTHONPATH=src
 python -m nutritional_rag.etl.cli --stage extract --config etl/sources.pubmed.example.json
 ```
 
+For broader PubMed coverage without hand-writing many source objects, use the
+topic-batched PubMed workflow:
+
+```bash
+source .venv/bin/activate
+pip install -e ".[etl,dev]"
+export PYTHONPATH=src
+python scripts/batch_pubmed_topics.py --config etl/pubmed_topics.example.json
+```
+
+This script:
+
+- loops over multiple PubMed topic queries
+- sleeps between topics to reduce rate-limit pressure
+- deduplicates results by PubMed UID when available
+- runs transform and chunk stages automatically
+- can load the final chunk set into Pinecone
+
 Run the transform stage:
 
 ```bash

@@ -1,0 +1,26 @@
+{
+  "topics": [
+    "micronutrients obesity hypertension diabetes adults",
+    "magnesium potassium blood pressure adults",
+    "vitamin d insulin resistance adults",
+    "dietary fiber metabolic syndrome adults",
+    "omega-3 cardiovascular inflammation adults"
+  ],
+  "load_max_docs": 5,
+  "sleep_seconds": 5,
+  "failure_sleep_seconds": 20,
+  "output_raw": "data/raw/pubmed_topics_extracted.ndjson",
+  "output_transformed": "data/processed/pubmed_topics_transformed.ndjson",
+  "output_chunks": "data/processed/pubmed_topics_chunks.ndjson",
+  "nutrition_only": true,
+  "min_nutrition_score": 2,
+  "load_to_pinecone": true,
+  "batch_size": 50,
+  "source_prefix": "pubmed-topic",
+  "source_name": "PubMed",
+  "source_license": "public-abstracts-check-terms",
+  "base_metadata": {
+    "domain": "general-nutrition",
+    "source_type": "biomedical-literature"
+  }
+}
