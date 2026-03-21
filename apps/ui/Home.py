@@ -76,6 +76,7 @@ def main() -> None:
         score = citation.get("score")
         title = citation.get("title")
         pubmed_url = citation.get("pubmed_url")
+        youtube_url = citation.get("youtube_url")
 
         page_text = f"page {page}" if page is not None else "page n/a"
         chunk_text = f"chunk {chunk_index}" if chunk_index is not None else "chunk n/a"
@@ -83,6 +84,8 @@ def main() -> None:
         source_badge = ""
         if pubmed_url:
             source_badge = f" | [PubMed]({pubmed_url})"
+        if youtube_url:
+            source_badge += f" | [YouTube]({youtube_url})"
 
         citation_line = (
             f"{index}. **{title_text}** | {page_text} | {chunk_text} "

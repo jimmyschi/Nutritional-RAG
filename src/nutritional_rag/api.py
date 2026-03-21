@@ -92,6 +92,7 @@ class Citation(BaseModel):
     page_number: int | None = None
     chunk_index: int | None = None
     pubmed_url: str | None = None
+    youtube_url: str | None = None
 
 
 class QueryResponse(BaseModel):
@@ -381,6 +382,7 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
         source_id = metadata.get("source_id")
         resolved_title = metadata.get("title") or SOURCE_TITLE_OVERRIDES.get(str(source_id or ""))
         pubmed_url = _pubmed_url_from_metadata(metadata)
+        youtube_url = _youtube_url_from_metadata(metadata)
 
         citations.append(
             Citation(
@@ -392,6 +394,7 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
                 page_number=metadata.get("page_number"),
                 chunk_index=metadata.get("chunk_index"),
                 pubmed_url=pubmed_url,
+                youtube_url=youtube_url,
             )
         )
 
@@ -419,6 +422,22 @@ def _pubmed_url_from_metadata(metadata: dict[str, Any]) -> str | None:
     query_value = metadata.get("query")
     if isinstance(query_value, str) and query_value.strip():
         return f"https://pubmed.ncbi.nlm.nih.gov/?term={quote_plus(query_value.strip())}"
+
+    return None
+
+
+def _youtube_url_from_metadata(metadata: dict[str, Any]) -> str | None:
+    source_id = str(metadata.get("source_id", ""))
+    if "youtube" not in source_id.lower():
+        return None
+
+    for key in ("video_url", "source", "url"):
+        value = metadata.get(key)
+        if not isinstance(value, str):
+            continue
+        url = value.strip()
+        if "youtube.com/watch" in url or "youtu.be/" in url:
+            return url
 
     return None
 

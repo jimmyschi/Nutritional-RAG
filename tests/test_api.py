@@ -173,6 +173,74 @@ def test_query_includes_pubmed_url_when_uid_present(monkeypatch) -> None:
     assert body["citations"][0]["pubmed_url"] == "https://pubmed.ncbi.nlm.nih.gov/12345678/"
 
 
+def test_query_includes_youtube_url_when_video_metadata_present(monkeypatch) -> None:
+    monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
+    monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")
+    monkeypatch.setattr(api_module.settings, "pinecone_index", "test-index")
+    monkeypatch.setattr(api_module.settings, "rerank_candidate_multiplier", 1)
+
+    class _EmbeddingData:
+        embedding = [0.1, 0.2, 0.3]
+
+    class _EmbeddingsResponse:
+        data = [_EmbeddingData()]
+
+    class _Message:
+        content = "Video-based summary."
+
+    class _Choice:
+        message = _Message()
+
+    class _ChatResponse:
+        choices = [_Choice()]
+
+    class _EmbeddingsAPI:
+        def create(self, model: str, input: list[str]):
+            return _EmbeddingsResponse()
+
+    class _CompletionsAPI:
+        def create(self, **kwargs):
+            return _ChatResponse()
+
+    class _ChatAPI:
+        completions = _CompletionsAPI()
+
+    class _OpenAIClient:
+        embeddings = _EmbeddingsAPI()
+        chat = _ChatAPI()
+
+    class _PineconeIndex:
+        def query(self, **kwargs):
+            return {
+                "matches": [
+                    {
+                        "id": "vec-youtube",
+                        "score": 0.78,
+                        "metadata": {
+                            "text": "Micronutrients can support metabolic health.",
+                            "source_id": "youtube-nutrition-micronutrients",
+                            "document_id": "doc-video-1",
+                            "title": "Micronutrients and Metabolic Health",
+                            "video_url": "https://www.youtube.com/watch?v=LrHcCdKgdiE",
+                            "chunk_index": 0,
+                        },
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(api_module, "_get_openai_client", lambda: _OpenAIClient())
+    monkeypatch.setattr(api_module, "_get_pinecone_index", lambda: _PineconeIndex())
+
+    response = client.post(
+        "/query",
+        json={"question": "What does this nutrition video say?", "top_k": 3},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["citations"]) == 1
+    assert body["citations"][0]["youtube_url"] == "https://www.youtube.com/watch?v=LrHcCdKgdiE"
+
+
 def test_query_uses_cache_when_available(monkeypatch) -> None:
     monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
     monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")
