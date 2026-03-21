@@ -202,6 +202,11 @@ Useful endpoints:
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
 
+Provisioned Grafana dashboard:
+
+- Folder: `Nutritional RAG`
+- Dashboard: `Nutritional RAG - Query Overview`
+
 Grafana default login (from compose env defaults):
 
 - Username: `admin`
@@ -214,6 +219,27 @@ reset Grafana state with:
 docker compose down -v
 docker compose up --build -d
 ```
+
+If you add or change dashboard provisioning files and do not see updates immediately:
+
+```bash
+docker compose restart grafana prometheus api
+```
+
+## Prometheus Metrics (Query Path)
+
+The API exports these custom metrics at `/metrics`:
+
+- `nutritional_rag_query_requests_total{status,cache_hit,generate_answer}`
+- `nutritional_rag_query_errors_total{error_type}`
+- `nutritional_rag_query_cache_checks_total{result}` where result is `hit`, `miss`, or `skipped`
+- `nutritional_rag_query_in_flight`
+- `nutritional_rag_query_duration_seconds` (histogram)
+- `nutritional_rag_query_top_k` (histogram)
+- `nutritional_rag_query_rerank_candidate_multiplier` (histogram)
+- `nutritional_rag_query_candidate_matches` (histogram)
+- `nutritional_rag_query_citations_returned` (histogram)
+- `nutritional_rag_query_mean_citation_score` (histogram)
 
 Stop services:
 

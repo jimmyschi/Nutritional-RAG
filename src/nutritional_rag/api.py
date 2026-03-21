@@ -6,14 +6,64 @@ import re
 import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from prometheus_client import make_asgi_app
+from fastapi import FastAPI, HTTPException, Response
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
 from nutritional_rag.settings import settings
 
 app = FastAPI(title=settings.project_name, version="0.1.0")
-app.mount("/metrics", make_asgi_app())
+
+
+QUERY_REQUESTS_TOTAL = Counter(
+    "nutritional_rag_query_requests_total",
+    "Total number of query requests by outcome.",
+    ["status", "cache_hit", "generate_answer"],
+)
+QUERY_ERRORS_TOTAL = Counter(
+    "nutritional_rag_query_errors_total",
+    "Total number of query errors by error type.",
+    ["error_type"],
+)
+QUERY_CACHE_CHECKS_TOTAL = Counter(
+    "nutritional_rag_query_cache_checks_total",
+    "Cache checks by result.",
+    ["result"],
+)
+QUERY_IN_FLIGHT = Gauge(
+    "nutritional_rag_query_in_flight",
+    "Current number of in-flight query requests.",
+)
+QUERY_DURATION_SECONDS = Histogram(
+    "nutritional_rag_query_duration_seconds",
+    "End-to-end query latency in seconds.",
+    buckets=(0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120),
+)
+QUERY_TOP_K = Histogram(
+    "nutritional_rag_query_top_k",
+    "Requested top_k values.",
+    buckets=(1, 3, 5, 8, 10, 12, 15, 20),
+)
+QUERY_RERANK_MULTIPLIER = Histogram(
+    "nutritional_rag_query_rerank_candidate_multiplier",
+    "Effective rerank candidate multiplier values.",
+    buckets=(1, 2, 3, 5, 8, 10, 15, 20),
+)
+QUERY_CANDIDATE_MATCHES = Histogram(
+    "nutritional_rag_query_candidate_matches",
+    "Number of candidate matches returned from Pinecone before reranking.",
+    buckets=(0, 1, 3, 5, 8, 10, 15, 20, 30, 50, 100),
+)
+QUERY_CITATIONS_RETURNED = Histogram(
+    "nutritional_rag_query_citations_returned",
+    "Number of citations returned to clients.",
+    buckets=(0, 1, 3, 5, 8, 10, 15, 20),
+)
+QUERY_MEAN_CITATION_SCORE = Histogram(
+    "nutritional_rag_query_mean_citation_score",
+    "Mean citation score per response.",
+    buckets=(0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+)
 
 
 SOURCE_TITLE_OVERRIDES: dict[str, str] = {
@@ -336,6 +386,11 @@ def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(generate_latest(REGISTRY), media_type="text/plain; version=0.0.4")
+
+
 @app.get("/readyz")
 def readiness() -> dict[str, bool | str]:
     return {
@@ -352,13 +407,22 @@ def query(request: QueryRequest) -> QueryResponse:
     _require_rag_settings()
     started_at = time.perf_counter()
     candidate_count = 0
+    effective_multiplier = max(1, _effective_rerank_candidate_multiplier(request))
+    cache_result = "skipped"
+    response_obj: QueryResponse | None = None
+    error_type: str | None = None
+    status = "ok"
+    QUERY_IN_FLIGHT.inc()
 
     try:
         redis_client = _get_redis_client()
         key = _cache_key(request)
         if request.use_cache:
+            cache_result = "miss"
             cached = _read_query_cache(redis_client, key)
             if cached is not None:
+                cache_result = "hit"
+                response_obj = cached
                 _log_query_to_mlflow(
                     request,
                     cached,
@@ -372,7 +436,6 @@ def query(request: QueryRequest) -> QueryResponse:
         pinecone_index = _get_pinecone_index()
 
         query_vector = _embed_query(openai_client, request.question)
-        effective_multiplier = max(1, _effective_rerank_candidate_multiplier(request))
         candidate_top_k = request.top_k * effective_multiplier
         query_result = pinecone_index.query(
             vector=query_vector,
@@ -393,6 +456,7 @@ def query(request: QueryRequest) -> QueryResponse:
             )
             if request.use_cache:
                 _write_query_cache(redis_client, key, response)
+            response_obj = response
             _log_query_to_mlflow(
                 request,
                 response,
@@ -409,6 +473,7 @@ def query(request: QueryRequest) -> QueryResponse:
         response = QueryResponse(answer=answer, citations=citations)
         if request.use_cache:
             _write_query_cache(redis_client, key, response)
+        response_obj = response
         _log_query_to_mlflow(
             request,
             response,
@@ -418,8 +483,12 @@ def query(request: QueryRequest) -> QueryResponse:
         )
         return response
     except HTTPException:
+        status = "error"
+        error_type = "http_exception"
         raise
     except Exception as error:
+        status = "error"
+        error_type = type(error).__name__
         _log_query_to_mlflow(
             request,
             None,
@@ -429,3 +498,35 @@ def query(request: QueryRequest) -> QueryResponse:
             error_detail=str(error),
         )
         raise HTTPException(status_code=500, detail=f"Query failed: {error}") from error
+    finally:
+        elapsed_seconds = max(0.0, time.perf_counter() - started_at)
+        QUERY_IN_FLIGHT.dec()
+        QUERY_DURATION_SECONDS.observe(elapsed_seconds)
+        QUERY_TOP_K.observe(float(request.top_k))
+        QUERY_RERANK_MULTIPLIER.observe(float(effective_multiplier))
+        QUERY_CACHE_CHECKS_TOTAL.labels(result=cache_result).inc()
+
+        if candidate_count >= 0:
+            QUERY_CANDIDATE_MATCHES.observe(float(candidate_count))
+
+        cache_hit_label = "false"
+        if response_obj is not None:
+            citation_count = float(len(response_obj.citations))
+            QUERY_CITATIONS_RETURNED.observe(citation_count)
+
+            if response_obj.citations:
+                mean_score = sum(c.score for c in response_obj.citations) / max(
+                    1, len(response_obj.citations)
+                )
+                QUERY_MEAN_CITATION_SCORE.observe(mean_score)
+
+            cache_hit_label = "true" if response_obj.cache_hit else "false"
+
+        QUERY_REQUESTS_TOTAL.labels(
+            status=status,
+            cache_hit=cache_hit_label,
+            generate_answer="true" if request.generate_answer else "false",
+        ).inc()
+
+        if status == "error":
+            QUERY_ERRORS_TOTAL.labels(error_type=error_type or "unknown").inc()
