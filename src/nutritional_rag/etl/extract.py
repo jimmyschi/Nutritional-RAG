@@ -53,6 +53,8 @@ def extract_source(source: ExtractionSource) -> list[RawDocument]:
         return _extract_pdf(source)
     if source.kind == "pubmed":
         return _extract_pubmed(source)
+    if source.kind == "youtube":
+        return _extract_youtube(source)
 
     raise ValueError(f"Unsupported source kind: {source.kind}")
 
@@ -283,3 +285,83 @@ def _extract_pubmed_title(metadata: dict[str, object]) -> str | None:
         if isinstance(text, str):
             return text.strip() or None
     return str(title)
+
+
+def _extract_youtube(source: ExtractionSource) -> list[RawDocument]:
+    try:
+        from langchain_community.document_loaders import YoutubeLoader
+    except ModuleNotFoundError as error:
+        raise ModuleNotFoundError(
+            "YouTube extraction requires 'langchain-community'. "
+            "Install with: pip install langchain-community"
+        ) from error
+
+    video_url = source.location.strip()
+    if not video_url:
+        return []
+
+    add_video_info = bool(source.metadata.get("add_video_info", True))
+    language_value = source.metadata.get("language", ["en"])
+    if isinstance(language_value, str):
+        language = [language_value]
+    elif isinstance(language_value, list):
+        language = [str(item) for item in language_value if str(item).strip()]
+    else:
+        language = ["en"]
+
+    try:
+        loader = YoutubeLoader.from_youtube_url(
+            video_url,
+            add_video_info=add_video_info,
+            language=language,
+        )
+        lc_docs = loader.load()
+    except ImportError as error:
+        raise ModuleNotFoundError(
+            "YouTube extraction requires compatible transcript packages. "
+            "Install with: pip install 'youtube-transcript-api>=1.2,<2.0' pytube"
+        ) from error
+    except Exception:
+        if not add_video_info:
+            raise
+        # pytube metadata calls can fail for some videos; retry transcript-only.
+        loader = YoutubeLoader.from_youtube_url(
+            video_url,
+            add_video_info=False,
+            language=language,
+        )
+        lc_docs = loader.load()
+
+    base_metadata = dict(source.metadata)
+    base_metadata.pop("add_video_info", None)
+    base_metadata.pop("language", None)
+    base_metadata["requested_add_video_info"] = add_video_info
+
+    documents: list[RawDocument] = []
+    for index, lc_doc in enumerate(lc_docs):
+        text = (lc_doc.page_content or "").strip()
+        if not text:
+            continue
+
+        lc_metadata = lc_doc.metadata or {}
+        title = lc_metadata.get("title")
+        metadata = {
+            "video_url": video_url,
+            **base_metadata,
+            **lc_metadata,
+        }
+        document_id = _stable_document_id(source.source_id, index, text)
+
+        documents.append(
+            RawDocument(
+                document_id=document_id,
+                source_id=source.source_id,
+                source_name=source.source_name,
+                source_location=source.location,
+                title=str(title) if title else None,
+                text=text,
+                metadata=metadata,
+            )
+        )
+
+    return documents

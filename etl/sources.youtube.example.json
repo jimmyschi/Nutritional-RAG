@@ -1,0 +1,20 @@
+{
+  "output_path": "data/raw/extracted_documents.ndjson",
+  "sources": [
+    {
+      "source_id": "youtube-nutrition-micronutrients",
+      "kind": "youtube",
+      "location": "https://www.youtube.com/watch?v=LrHcCdKgdiE",
+      "source_name": "YouTube",
+      "license": "youtube-terms-check-usage",
+      "metadata": {
+        "domain": "general-nutrition",
+        "source_type": "video-transcript",
+        "add_video_info": false,
+        "language": [
+          "en"
+        ]
+      }
+    }
+  ]
+}

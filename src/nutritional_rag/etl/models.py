@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class ExtractionSource(BaseModel):
     source_id: str
-    kind: Literal["csv", "json", "html", "text", "pdf", "pubmed"]
+    kind: Literal["csv", "json", "html", "text", "pdf", "pubmed", "youtube"]
     location: str
     source_name: str
     license: str | None = None

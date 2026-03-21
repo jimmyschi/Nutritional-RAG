@@ -40,7 +40,7 @@ Initial repository scaffold for a nutritional retrieval-augmented generation sys
 - Python project metadata in `pyproject.toml`
 - Minimal FastAPI app with health and readiness endpoints
 - Minimal Streamlit landing page for the demo UI
-- Starter ETL extract pipeline modules for CSV, JSON, HTML, text, PDF, and PubMed sources
+- Starter ETL extract pipeline modules for CSV, JSON, HTML, text, PDF, PubMed, and YouTube sources
 - Make targets for local development
 - GitHub Actions CI workflow for linting and tests
 - GitHub Actions publish workflow for API and UI images to GHCR
@@ -90,6 +90,18 @@ pip install -e ".[etl,dev]"
 export PYTHONPATH=src
 python -m nutritional_rag.etl.cli --stage extract --config etl/sources.pubmed.example.json
 ```
+
+For YouTube transcript extraction via LangChain:
+
+```bash
+source .venv/bin/activate
+pip install -e ".[etl,dev]"
+export PYTHONPATH=src
+python -m nutritional_rag.etl.cli --stage extract --config etl/sources.youtube.example.json
+```
+
+Note: for reliable extraction across videos, prefer `"add_video_info": false`
+in source metadata (transcript-only mode).
 
 For broader PubMed coverage without hand-writing many source objects, use the
 topic-batched PubMed workflow:
@@ -297,6 +309,7 @@ python -m nutritional_rag.etl.cli --stage transform --input data/raw/extracted_d
 
 For PDFs, extraction emits one document per page with page metadata.
 For PubMed, extraction uses LangChain `PubMedLoader` and emits one document per returned abstract.
+For YouTube, extraction uses LangChain `YoutubeLoader` and emits transcript documents with video metadata.
 
 ## GitHub Actions
 

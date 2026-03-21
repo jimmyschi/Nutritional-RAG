@@ -116,3 +116,61 @@ def test_extract_pubmed_title_dict_metadata_is_normalized(monkeypatch) -> None:
 
     assert len(docs) == 1
     assert docs[0].title == "Cordyceps militaris Current Evidence in Humans"
+
+
+def test_extract_youtube_source_with_loader_mock(monkeypatch) -> None:
+    fake_child = types.ModuleType("langchain_community.document_loaders")
+    fake_parent = types.ModuleType("langchain_community")
+
+    class _FakeDocument:
+        def __init__(self, page_content: str, metadata: dict[str, object]) -> None:
+            self.page_content = page_content
+            self.metadata = metadata
+
+    class _FakeYoutubeLoader:
+        def __init__(self, docs):
+            self._docs = docs
+
+        def load(self):
+            return self._docs
+
+        @classmethod
+        def from_youtube_url(cls, url: str, add_video_info: bool, language: list[str]):
+            assert url == "https://www.youtube.com/watch?v=LrHcCdKgdiE"
+            assert add_video_info is False
+            assert language == ["en"]
+            return cls(
+                [
+                    _FakeDocument(
+                        page_content=(
+                            "Micronutrients support metabolic health and insulin response."
+                        ),
+                        metadata={
+                            "title": "Nutrition Basics for Metabolic Health",
+                            "source": url,
+                            "view_count": 12345,
+                        },
+                    )
+                ]
+            )
+
+    fake_child.YoutubeLoader = _FakeYoutubeLoader
+    fake_parent.document_loaders = fake_child
+    monkeypatch.setitem(sys.modules, "langchain_community", fake_parent)
+    monkeypatch.setitem(sys.modules, "langchain_community.document_loaders", fake_child)
+
+    source = ExtractionSource(
+        source_id="youtube-nutrition-video",
+        kind="youtube",
+        location="https://www.youtube.com/watch?v=LrHcCdKgdiE",
+        source_name="YouTube",
+        metadata={"domain": "general-nutrition", "add_video_info": False, "language": ["en"]},
+    )
+
+    docs = extract_source(source)
+
+    assert len(docs) == 1
+    assert docs[0].source_id == "youtube-nutrition-video"
+    assert docs[0].title == "Nutrition Basics for Metabolic Health"
+    assert docs[0].metadata["domain"] == "general-nutrition"
+    assert docs[0].metadata["video_url"] == "https://www.youtube.com/watch?v=LrHcCdKgdiE"
