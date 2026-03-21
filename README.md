@@ -40,7 +40,7 @@ Initial repository scaffold for a nutritional retrieval-augmented generation sys
 - Python project metadata in `pyproject.toml`
 - Minimal FastAPI app with health and readiness endpoints
 - Minimal Streamlit landing page for the demo UI
-- Starter ETL extract pipeline modules for CSV, JSON, HTML, and text sources
+- Starter ETL extract pipeline modules for CSV, JSON, HTML, text, PDF, and PubMed sources
 - Make targets for local development
 - GitHub Actions CI workflow for linting and tests
 - GitHub Actions publish workflow for API and UI images to GHCR
@@ -80,6 +80,15 @@ For real local sources (recommended):
 cp etl/sources.bodybuilding.example.json etl/sources.bodybuilding.local.json
 # edit the location path in the local file
 python -m nutritional_rag.etl.cli --stage extract --config etl/sources.bodybuilding.local.json
+```
+
+For PubMed extraction via LangChain:
+
+```bash
+source .venv/bin/activate
+pip install -e ".[etl,dev]"
+export PYTHONPATH=src
+python -m nutritional_rag.etl.cli --stage extract --config etl/sources.pubmed.example.json
 ```
 
 Run the transform stage:
@@ -268,8 +277,8 @@ python -m nutritional_rag.etl.cli --stage extract --config etl/sources.bodybuild
 python -m nutritional_rag.etl.cli --stage transform --input data/raw/extracted_documents.ndjson
 ```
 
-For PDFs, extraction currently emits one document per page with page metadata,
-which is a good base for later nutrition-only filtering and chunking.
+For PDFs, extraction emits one document per page with page metadata.
+For PubMed, extraction uses LangChain `PubMedLoader` and emits one document per returned abstract.
 
 ## GitHub Actions
 

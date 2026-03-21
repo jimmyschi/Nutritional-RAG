@@ -1,0 +1,17 @@
+{
+  "output_path": "data/raw/extracted_documents.ndjson",
+  "sources": [
+    {
+      "source_id": "pubmed-sports-nutrition",
+      "kind": "pubmed",
+      "location": "creatine supplementation performance athletes",
+      "source_name": "PubMed",
+      "license": "public-abstracts-check-terms",
+      "metadata": {
+        "domain": "sports-nutrition",
+        "source_type": "biomedical-literature",
+        "load_max_docs": 10
+      }
+    }
+  ]
+}

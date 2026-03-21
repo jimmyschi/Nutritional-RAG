@@ -51,6 +51,8 @@ def extract_source(source: ExtractionSource) -> list[RawDocument]:
         return _extract_text(source)
     if source.kind == "pdf":
         return _extract_pdf(source)
+    if source.kind == "pubmed":
+        return _extract_pubmed(source)
 
     raise ValueError(f"Unsupported source kind: {source.kind}")
 
@@ -198,6 +200,61 @@ def _extract_pdf(source: ExtractionSource) -> list[RawDocument]:
                 source_name=source.source_name,
                 source_location=source.location,
                 title=base_title,
+                text=text,
+                metadata=metadata,
+            )
+        )
+
+    return documents
+
+
+def _extract_pubmed(source: ExtractionSource) -> list[RawDocument]:
+    try:
+        from langchain_community.document_loaders import PubMedLoader
+    except ModuleNotFoundError as error:
+        raise ModuleNotFoundError(
+            "PubMed extraction requires 'langchain-community'. "
+            "Install with: pip install langchain-community"
+        ) from error
+
+    query = source.location.strip()
+    if not query:
+        return []
+
+    raw_max_docs = source.metadata.get("load_max_docs", 10)
+    try:
+        load_max_docs = max(1, int(raw_max_docs))
+    except (TypeError, ValueError):
+        load_max_docs = 10
+
+    loader = PubMedLoader(query=query, load_max_docs=load_max_docs)
+    lc_docs = loader.load()
+    base_metadata = dict(source.metadata)
+    base_metadata.pop("load_max_docs", None)
+
+    documents: list[RawDocument] = []
+    for index, lc_doc in enumerate(lc_docs):
+        text = (lc_doc.page_content or "").strip()
+        if not text:
+            continue
+
+        lc_metadata = lc_doc.metadata or {}
+        title = lc_metadata.get("Title") or lc_metadata.get("title")
+        metadata = {
+            "query": query,
+            "result_index": index,
+            **base_metadata,
+            **lc_metadata,
+        }
+        document_id = _stable_document_id(source.source_id, index, text)
+
+        documents.append(
+            RawDocument(
+                document_id=document_id,
+                source_id=source.source_id,
+                source_name=source.source_name,
+                source_location=source.location,
+                title=str(title) if title else None,
                 text=text,
                 metadata=metadata,
             )
