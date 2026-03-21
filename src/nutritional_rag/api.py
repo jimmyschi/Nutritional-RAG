@@ -5,6 +5,7 @@ import json
 import re
 import time
 from typing import Any
+from urllib.parse import quote_plus
 
 from fastapi import FastAPI, HTTPException, Response
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
@@ -371,6 +372,15 @@ def _pubmed_url_from_metadata(metadata: dict[str, Any]) -> str | None:
         identifier = str(value).strip()
         if identifier:
             return f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"
+
+    # Fallback: link to PubMed search using title (preferred) or source query text.
+    title_value = metadata.get("title") or metadata.get("Title")
+    if isinstance(title_value, str) and title_value.strip():
+        return f"https://pubmed.ncbi.nlm.nih.gov/?term={quote_plus(title_value.strip())}"
+
+    query_value = metadata.get("query")
+    if isinstance(query_value, str) and query_value.strip():
+        return f"https://pubmed.ncbi.nlm.nih.gov/?term={quote_plus(query_value.strip())}"
 
     return None
 
