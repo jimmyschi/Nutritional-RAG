@@ -227,8 +227,13 @@ def _extract_pubmed(source: ExtractionSource) -> list[RawDocument]:
     except (TypeError, ValueError):
         load_max_docs = 10
 
-    loader = PubMedLoader(query=query, load_max_docs=load_max_docs)
-    lc_docs = loader.load()
+    try:
+        loader = PubMedLoader(query=query, load_max_docs=load_max_docs)
+        lc_docs = loader.load()
+    except ImportError as error:
+        raise ModuleNotFoundError(
+            "PubMed extraction requires 'xmltodict'. Install with: pip install xmltodict"
+        ) from error
     base_metadata = dict(source.metadata)
     base_metadata.pop("load_max_docs", None)
 
@@ -239,7 +244,7 @@ def _extract_pubmed(source: ExtractionSource) -> list[RawDocument]:
             continue
 
         lc_metadata = lc_doc.metadata or {}
-        title = lc_metadata.get("Title") or lc_metadata.get("title")
+        title = _extract_pubmed_title(lc_metadata)
         metadata = {
             "query": query,
             "result_index": index,
@@ -261,3 +266,20 @@ def _extract_pubmed(source: ExtractionSource) -> list[RawDocument]:
         )
 
     return documents
+
+
+def _extract_pubmed_title(metadata: dict[str, object]) -> str | None:
+    title = metadata.get("Title") or metadata.get("title")
+    if title is None:
+        return None
+    if isinstance(title, str):
+        return title.strip() or None
+    if isinstance(title, dict):
+        text = title.get("#text")
+        prefix = title.get("i")
+        if isinstance(prefix, str) and isinstance(text, str):
+            combined = f"{prefix} {text}".strip()
+            return combined or None
+        if isinstance(text, str):
+            return text.strip() or None
+    return str(title)

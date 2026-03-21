@@ -19,6 +19,14 @@ def main() -> None:
             height=120,
         )
         top_k = st.slider("Top K retrieved chunks", min_value=1, max_value=10, value=5)
+        rerank_candidate_multiplier = st.slider(
+            "Rerank candidate multiplier",
+            min_value=1,
+            max_value=20,
+            value=10,
+            help="Higher values pull more Pinecone candidates before reranking."
+            " This improves source diversity but increases latency.",
+        )
         submitted = st.form_submit_button("Ask")
 
     if not submitted:
@@ -32,7 +40,11 @@ def main() -> None:
     try:
         response = requests.post(
             f"{api_base_url}/query",
-            json={"question": question.strip(), "top_k": top_k},
+            json={
+                "question": question.strip(),
+                "top_k": top_k,
+                "rerank_candidate_multiplier": rerank_candidate_multiplier,
+            },
             timeout=120,
         )
     except requests.RequestException as error:

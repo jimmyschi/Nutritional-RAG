@@ -69,3 +69,50 @@ def test_extract_pubmed_source_with_loader_mock(monkeypatch) -> None:
     assert docs[0].metadata["domain"] == "sports-nutrition"
     assert docs[0].metadata["uid"] == "12345"
     assert docs[0].metadata["query"] == "creatine supplementation performance"
+
+
+def test_extract_pubmed_title_dict_metadata_is_normalized(monkeypatch) -> None:
+    fake_child = types.ModuleType("langchain_community.document_loaders")
+    fake_parent = types.ModuleType("langchain_community")
+
+    class _FakeDocument:
+        def __init__(self, page_content: str, metadata: dict[str, object]) -> None:
+            self.page_content = page_content
+            self.metadata = metadata
+
+    class _FakePubMedLoader:
+        def __init__(self, query: str, load_max_docs: int) -> None:
+            self.query = query
+            self.load_max_docs = load_max_docs
+
+        def load(self):
+            return [
+                _FakeDocument(
+                    page_content="Review paper text.",
+                    metadata={
+                        "Title": {
+                            "i": "Cordyceps militaris",
+                            "#text": "Current Evidence in Humans",
+                        },
+                        "uid": "abc",
+                    },
+                )
+            ]
+
+    fake_child.PubMedLoader = _FakePubMedLoader
+    fake_parent.document_loaders = fake_child
+    monkeypatch.setitem(sys.modules, "langchain_community", fake_parent)
+    monkeypatch.setitem(sys.modules, "langchain_community.document_loaders", fake_child)
+
+    source = ExtractionSource(
+        source_id="pubmed-nutrition",
+        kind="pubmed",
+        location="ergogenic aids",
+        source_name="PubMed",
+        metadata={"load_max_docs": 1},
+    )
+
+    docs = extract_source(source)
+
+    assert len(docs) == 1
+    assert docs[0].title == "Cordyceps militaris Current Evidence in Humans"

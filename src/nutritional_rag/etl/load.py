@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any, TypeVar
@@ -70,7 +71,29 @@ def chunk_to_metadata(chunk: ChunkedDocument) -> dict[str, Any]:
         "text": chunk.text,
     }
     metadata.update(chunk.metadata)
-    return metadata
+    return _sanitize_pinecone_metadata(metadata)
+
+
+def _sanitize_pinecone_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for key, value in metadata.items():
+        sanitized[key] = _coerce_metadata_value(value)
+    return sanitized
+
+
+def _coerce_metadata_value(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+
+    if isinstance(value, list):
+        # Pinecone supports only list[str] for array metadata.
+        return [str(item) for item in value]
+
+    # For dicts or other complex objects, preserve content as JSON string.
+    try:
+        return json.dumps(value, ensure_ascii=True, sort_keys=True)
+    except TypeError:
+        return str(value)
 
 
 def get_openai_client() -> Any:
