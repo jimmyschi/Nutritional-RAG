@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import os
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.request import urlopen
@@ -439,8 +440,10 @@ def _extract_web_via_direct_fetch(source: ExtractionSource, url: str) -> list[Ra
         return []
 
     document_id = _stable_document_id(source.source_id, 0, text)
-    title = source.metadata.get("title") if source.metadata else None
-    metadata = {"url": url, "fallback": "direct_fetch", **dict(source.metadata)}
+    feed_title, article_link = _extract_rss_primary_item_metadata(raw)
+    title = feed_title or (source.metadata.get("title") if source.metadata else None)
+    resolved_url = article_link or url
+    metadata = {"url": resolved_url, "feed_url": url, "fallback": "direct_fetch", **dict(source.metadata)}
     return [
         RawDocument(
             document_id=document_id,
@@ -452,6 +455,23 @@ def _extract_web_via_direct_fetch(source: ExtractionSource, url: str) -> list[Ra
             metadata=metadata,
         )
     ]
+
+
+def _extract_rss_primary_item_metadata(xml_text: str) -> tuple[str | None, str | None]:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return None, None
+
+    item = root.find("./channel/item")
+    if item is None:
+        return None, None
+
+    title = item.findtext("title")
+    link = item.findtext("link")
+    resolved_title = title.strip() if isinstance(title, str) and title.strip() else None
+    resolved_link = link.strip() if isinstance(link, str) and link.strip() else None
+    return resolved_title, resolved_link
 
 
 def _looks_like_forbidden_page(lc_docs: list[object]) -> bool:

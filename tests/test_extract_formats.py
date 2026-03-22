@@ -213,6 +213,7 @@ def test_extract_web_source_with_loader_mock(monkeypatch) -> None:
         assert location == "https://nutritionsource.hsph.harvard.edu/nutrition-news/"
         return (
             "<rss><channel><item><title>Dietary Guidelines for Americans 2025-2030</title>"
+            "<link>https://nutritionsource.hsph.harvard.edu/2026/01/09/dietary-guidelines-for-americans-2025-2030/</link>"
             "<description>Added sugars should be limited.</description></item></channel></rss>"
         ).encode("utf-8")
 
@@ -230,8 +231,12 @@ def test_extract_web_source_with_loader_mock(monkeypatch) -> None:
 
     assert len(docs) == 1
     assert docs[0].source_id == "harvard-nutrition-news"
-    assert docs[0].title is None
+    assert docs[0].title == "Dietary Guidelines for Americans 2025-2030"
     assert docs[0].metadata["domain"] == "general-nutrition"
-    assert docs[0].metadata["url"] == "https://nutritionsource.hsph.harvard.edu/nutrition-news/"
+    assert (
+        docs[0].metadata["url"]
+        == "https://nutritionsource.hsph.harvard.edu/2026/01/09/dietary-guidelines-for-americans-2025-2030/"
+    )
+    assert docs[0].metadata["feed_url"] == "https://nutritionsource.hsph.harvard.edu/nutrition-news/"
     assert docs[0].metadata["fallback"] == "direct_fetch"
     assert "Dietary Guidelines for Americans" in docs[0].text
