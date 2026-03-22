@@ -309,6 +309,80 @@ def test_query_includes_youtube_url_without_youtube_source_id(monkeypatch) -> No
     assert body["citations"][0]["youtube_url"] == "https://www.youtube.com/watch?v=LrHcCdKgdiE"
 
 
+def test_query_includes_harvard_url_when_metadata_has_harvard_source(monkeypatch) -> None:
+    monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
+    monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")
+    monkeypatch.setattr(api_module.settings, "pinecone_index", "test-index")
+    monkeypatch.setattr(api_module.settings, "rerank_candidate_multiplier", 1)
+
+    class _EmbeddingData:
+        embedding = [0.1, 0.2, 0.3]
+
+    class _EmbeddingsResponse:
+        data = [_EmbeddingData()]
+
+    class _Message:
+        content = "Harvard news summary."
+
+    class _Choice:
+        message = _Message()
+
+    class _ChatResponse:
+        choices = [_Choice()]
+
+    class _EmbeddingsAPI:
+        def create(self, model: str, input: list[str]):
+            return _EmbeddingsResponse()
+
+    class _CompletionsAPI:
+        def create(self, **kwargs):
+            return _ChatResponse()
+
+    class _ChatAPI:
+        completions = _CompletionsAPI()
+
+    class _OpenAIClient:
+        embeddings = _EmbeddingsAPI()
+        chat = _ChatAPI()
+
+    class _PineconeIndex:
+        def query(self, **kwargs):
+            return {
+                "matches": [
+                    {
+                        "id": "vec-harvard",
+                        "score": 0.81,
+                        "metadata": {
+                            "text": "Dietary guidance emphasizes whole-food patterns.",
+                            "source_id": "harvard-nutrition-news",
+                            "document_id": "doc-harvard-1",
+                            "title": "Dietary Guidelines for Americans 2025-2030",
+                            "source_location": (
+                                "https://nutritionsource.hsph.harvard.edu/"
+                                "nutrition-news/feed/"
+                            ),
+                            "chunk_index": 0,
+                        },
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(api_module, "_get_openai_client", lambda: _OpenAIClient())
+    monkeypatch.setattr(api_module, "_get_pinecone_index", lambda: _PineconeIndex())
+
+    response = client.post(
+        "/query",
+        json={"question": "What does Harvard say about US dietary guidelines?", "top_k": 3, "use_cache": False},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["citations"]) == 1
+    assert (
+        body["citations"][0]["harvard_url"]
+        == "https://nutritionsource.hsph.harvard.edu/nutrition-news/feed/"
+    )
+
+
 def test_query_uses_cache_when_available(monkeypatch) -> None:
     monkeypatch.setattr(api_module.settings, "openai_api_key", "test-openai")
     monkeypatch.setattr(api_module.settings, "pinecone_api_key", "test-pinecone")

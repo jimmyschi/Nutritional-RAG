@@ -93,6 +93,7 @@ class Citation(BaseModel):
     chunk_index: int | None = None
     pubmed_url: str | None = None
     youtube_url: str | None = None
+    harvard_url: str | None = None
 
 
 class QueryResponse(BaseModel):
@@ -383,6 +384,7 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
         resolved_title = metadata.get("title") or SOURCE_TITLE_OVERRIDES.get(str(source_id or ""))
         pubmed_url = _pubmed_url_from_metadata(metadata)
         youtube_url = _youtube_url_from_metadata(metadata)
+        harvard_url = _harvard_url_from_metadata(metadata)
 
         citations.append(
             Citation(
@@ -395,6 +397,7 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
                 chunk_index=metadata.get("chunk_index"),
                 pubmed_url=pubmed_url,
                 youtube_url=youtube_url,
+                harvard_url=harvard_url,
             )
         )
 
@@ -438,6 +441,22 @@ def _youtube_url_from_metadata(metadata: dict[str, Any]) -> str | None:
     video_id = metadata.get("video_id")
     if isinstance(video_id, str) and video_id.strip():
         return f"https://www.youtube.com/watch?v={video_id.strip()}"
+
+    return None
+
+
+def _harvard_url_from_metadata(metadata: dict[str, Any]) -> str | None:
+    source_id = str(metadata.get("source_id", "")).lower()
+    if "harvard" not in source_id and "nutrition-source" not in source_id:
+        return None
+
+    for key in ("source_location", "source", "url"):
+        value = metadata.get(key)
+        if not isinstance(value, str):
+            continue
+        url = value.strip()
+        if "nutritionsource.hsph.harvard.edu" in url:
+            return url
 
     return None
 

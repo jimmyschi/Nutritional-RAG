@@ -15,7 +15,7 @@ def main() -> None:
     with st.form("query-form"):
         question = st.text_area(
             "Question",
-            value="How are carbohydrates used in endurance exercise?",
+            value="What are the dietary guidelines for Americans based on WHO?",
             height=120,
         )
         top_k = st.slider("Top K retrieved chunks", min_value=1, max_value=10, value=5)
@@ -77,6 +77,7 @@ def main() -> None:
         title = citation.get("title")
         pubmed_url = citation.get("pubmed_url")
         youtube_url = citation.get("youtube_url")
+        harvard_url = citation.get("harvard_url")
 
         page_text = f"page {page}" if page is not None else "page n/a"
         chunk_text = f"chunk {chunk_index}" if chunk_index is not None else "chunk n/a"
@@ -86,6 +87,8 @@ def main() -> None:
             source_badge = f" | [PubMed]({pubmed_url})"
         if youtube_url:
             source_badge += f" | [YouTube]({youtube_url})"
+        if harvard_url:
+            source_badge += f" | [Harvard]({harvard_url})"
 
         citation_line = (
             f"{index}. **{title_text}** | {page_text} | {chunk_text} "
