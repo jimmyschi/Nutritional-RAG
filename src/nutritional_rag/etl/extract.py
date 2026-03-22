@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.request import urlopen
@@ -55,6 +56,8 @@ def extract_source(source: ExtractionSource) -> list[RawDocument]:
         return _extract_pubmed(source)
     if source.kind == "youtube":
         return _extract_youtube(source)
+    if source.kind == "web":
+        return _extract_web(source)
 
     raise ValueError(f"Unsupported source kind: {source.kind}")
 
@@ -347,6 +350,64 @@ def _extract_youtube(source: ExtractionSource) -> list[RawDocument]:
         title = lc_metadata.get("title")
         metadata = {
             "video_url": video_url,
+            **base_metadata,
+            **lc_metadata,
+        }
+        document_id = _stable_document_id(source.source_id, index, text)
+
+        documents.append(
+            RawDocument(
+                document_id=document_id,
+                source_id=source.source_id,
+                source_name=source.source_name,
+                source_location=source.location,
+                title=str(title) if title else None,
+                text=text,
+                metadata=metadata,
+            )
+        )
+
+    return documents
+
+
+def _extract_web(source: ExtractionSource) -> list[RawDocument]:
+    user_agent = str(
+        source.metadata.get(
+            "user_agent",
+            "NutritionalRAGBot/0.1 (+https://github.com/jimmyschi/Nutritional-RAG)",
+        )
+    ).strip()
+    if user_agent:
+        os.environ.setdefault("USER_AGENT", user_agent)
+
+    try:
+        from langchain_community.document_loaders import WebBaseLoader
+    except ModuleNotFoundError as error:
+        raise ModuleNotFoundError(
+            "Web extraction requires 'langchain-community' and 'beautifulsoup4'. "
+            "Install with: pip install langchain-community beautifulsoup4"
+        ) from error
+
+    url = source.location.strip()
+    if not url:
+        return []
+
+    header_template = {"User-Agent": user_agent} if user_agent else None
+    loader = WebBaseLoader(web_paths=[url], header_template=header_template)
+    lc_docs = loader.load()
+    base_metadata = dict(source.metadata)
+
+    documents: list[RawDocument] = []
+    for index, lc_doc in enumerate(lc_docs):
+        text = (lc_doc.page_content or "").strip()
+        if not text:
+            continue
+
+        lc_metadata = lc_doc.metadata or {}
+        title = lc_metadata.get("title") or base_metadata.get("title")
+        metadata = {
+            "url": url,
+            "result_index": index,
             **base_metadata,
             **lc_metadata,
         }

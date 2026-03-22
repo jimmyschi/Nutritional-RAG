@@ -25,6 +25,7 @@ etl = [
   "langchain-community>=0.3,<0.4",
   "langchain-openai>=0.2,<0.3",
   "langchain-pinecone>=0.2,<0.3",
+  "beautifulsoup4>=4.12,<5.0",
   "pypdf>=5.1,<6.0",
   "xmltodict>=0.13,<1.0",
   "youtube-transcript-api>=1.2,<2.0",

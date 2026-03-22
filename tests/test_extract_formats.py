@@ -174,3 +174,54 @@ def test_extract_youtube_source_with_loader_mock(monkeypatch) -> None:
     assert docs[0].title == "Nutrition Basics for Metabolic Health"
     assert docs[0].metadata["domain"] == "general-nutrition"
     assert docs[0].metadata["video_url"] == "https://www.youtube.com/watch?v=LrHcCdKgdiE"
+
+
+def test_extract_web_source_with_loader_mock(monkeypatch) -> None:
+    fake_child = types.ModuleType("langchain_community.document_loaders")
+    fake_parent = types.ModuleType("langchain_community")
+
+    class _FakeDocument:
+        def __init__(self, page_content: str, metadata: dict[str, object]) -> None:
+            self.page_content = page_content
+            self.metadata = metadata
+
+    class _FakeWebBaseLoader:
+        def __init__(self, web_paths: list[str], header_template: dict[str, str] | None = None) -> None:
+            assert web_paths == ["https://nutritionsource.hsph.harvard.edu/nutrition-news/"]
+            assert header_template is not None
+            assert "User-Agent" in header_template
+            self._web_paths = web_paths
+
+        def load(self):
+            return [
+                _FakeDocument(
+                    page_content=(
+                        "Nutrition News: Recent findings on healthy dietary patterns."
+                    ),
+                    metadata={
+                        "title": "Nutrition News",
+                        "source": self._web_paths[0],
+                    },
+                )
+            ]
+
+    fake_child.WebBaseLoader = _FakeWebBaseLoader
+    fake_parent.document_loaders = fake_child
+    monkeypatch.setitem(sys.modules, "langchain_community", fake_parent)
+    monkeypatch.setitem(sys.modules, "langchain_community.document_loaders", fake_child)
+
+    source = ExtractionSource(
+        source_id="harvard-nutrition-news",
+        kind="web",
+        location="https://nutritionsource.hsph.harvard.edu/nutrition-news/",
+        source_name="Harvard Nutrition Source",
+        metadata={"domain": "general-nutrition", "source_type": "web-news"},
+    )
+
+    docs = extract_source(source)
+
+    assert len(docs) == 1
+    assert docs[0].source_id == "harvard-nutrition-news"
+    assert docs[0].title == "Nutrition News"
+    assert docs[0].metadata["domain"] == "general-nutrition"
+    assert docs[0].metadata["url"] == "https://nutritionsource.hsph.harvard.edu/nutrition-news/"

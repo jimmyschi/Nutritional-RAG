@@ -1,0 +1,18 @@
+{
+  "output_path": "data/raw/extracted_documents.ndjson",
+  "sources": [
+    {
+      "source_id": "harvard-nutrition-news",
+      "kind": "web",
+      "location": "https://nutritionsource.hsph.harvard.edu/nutrition-news/",
+      "source_name": "Harvard Nutrition Source",
+      "license": "website-terms-check-usage",
+      "metadata": {
+        "domain": "general-nutrition",
+        "source_type": "web-news",
+        "publisher": "Harvard T.H. Chan School of Public Health",
+        "user_agent": "NutritionalRAGBot/0.1 (+https://github.com/jimmyschi/Nutritional-RAG)"
+      }
+    }
+  ]
+}

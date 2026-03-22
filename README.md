@@ -100,6 +100,15 @@ export PYTHONPATH=src
 python -m nutritional_rag.etl.cli --stage extract --config etl/sources.youtube.example.json
 ```
 
+For Harvard Nutrition Source news extraction via LangChain:
+
+```bash
+source .venv/bin/activate
+pip install -e ".[etl,dev]"
+export PYTHONPATH=src
+python -m nutritional_rag.etl.cli --stage extract --config etl/sources.harvard_news.example.json
+```
+
 Note: for reliable extraction across videos, prefer `"add_video_info": false`
 in source metadata (transcript-only mode).
 
