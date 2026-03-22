@@ -395,6 +395,8 @@ def _extract_web(source: ExtractionSource) -> list[RawDocument]:
     header_template = {"User-Agent": user_agent} if user_agent else None
     loader = WebBaseLoader(web_paths=[url], header_template=header_template)
     lc_docs = loader.load()
+    if _looks_like_forbidden_page(lc_docs):
+        return _extract_web_via_direct_fetch(source, url)
     base_metadata = dict(source.metadata)
 
     documents: list[RawDocument] = []
@@ -426,3 +428,40 @@ def _extract_web(source: ExtractionSource) -> list[RawDocument]:
         )
 
     return documents
+
+
+def _extract_web_via_direct_fetch(source: ExtractionSource, url: str) -> list[RawDocument]:
+    raw = _read_location(url).decode("utf-8", errors="ignore")
+    parser = _HTMLTextExtractor()
+    parser.feed(raw)
+    text = parser.get_text().strip()
+    if not text:
+        return []
+
+    document_id = _stable_document_id(source.source_id, 0, text)
+    title = source.metadata.get("title") if source.metadata else None
+    metadata = {"url": url, "fallback": "direct_fetch", **dict(source.metadata)}
+    return [
+        RawDocument(
+            document_id=document_id,
+            source_id=source.source_id,
+            source_name=source.source_name,
+            source_location=source.location,
+            title=str(title) if title else None,
+            text=text,
+            metadata=metadata,
+        )
+    ]
+
+
+def _looks_like_forbidden_page(lc_docs: list[object]) -> bool:
+    if not lc_docs:
+        return False
+
+    first_doc = lc_docs[0]
+    text = str(getattr(first_doc, "page_content", "") or "").strip().lower()
+    if not text:
+        return False
+
+    blocked_markers = ("403 forbidden", "varnish cache server", "error 54113")
+    return any(marker in text for marker in blocked_markers)

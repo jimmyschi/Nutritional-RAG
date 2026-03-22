@@ -186,7 +186,11 @@ def test_extract_web_source_with_loader_mock(monkeypatch) -> None:
             self.metadata = metadata
 
     class _FakeWebBaseLoader:
-        def __init__(self, web_paths: list[str], header_template: dict[str, str] | None = None) -> None:
+        def __init__(
+            self,
+            web_paths: list[str],
+            header_template: dict[str, str] | None = None,
+        ) -> None:
             assert web_paths == ["https://nutritionsource.hsph.harvard.edu/nutrition-news/"]
             assert header_template is not None
             assert "User-Agent" in header_template
@@ -195,13 +199,8 @@ def test_extract_web_source_with_loader_mock(monkeypatch) -> None:
         def load(self):
             return [
                 _FakeDocument(
-                    page_content=(
-                        "Nutrition News: Recent findings on healthy dietary patterns."
-                    ),
-                    metadata={
-                        "title": "Nutrition News",
-                        "source": self._web_paths[0],
-                    },
+                    page_content="403 Forbidden\nError 54113\nVarnish cache server",
+                    metadata={"title": "403 Forbidden", "source": self._web_paths[0]},
                 )
             ]
 
@@ -209,6 +208,15 @@ def test_extract_web_source_with_loader_mock(monkeypatch) -> None:
     fake_parent.document_loaders = fake_child
     monkeypatch.setitem(sys.modules, "langchain_community", fake_parent)
     monkeypatch.setitem(sys.modules, "langchain_community.document_loaders", fake_child)
+
+    def _fake_read_location(location: str) -> bytes:
+        assert location == "https://nutritionsource.hsph.harvard.edu/nutrition-news/"
+        return (
+            "<rss><channel><item><title>Dietary Guidelines for Americans 2025-2030</title>"
+            "<description>Added sugars should be limited.</description></item></channel></rss>"
+        ).encode("utf-8")
+
+    monkeypatch.setattr("nutritional_rag.etl.extract._read_location", _fake_read_location)
 
     source = ExtractionSource(
         source_id="harvard-nutrition-news",
@@ -222,6 +230,8 @@ def test_extract_web_source_with_loader_mock(monkeypatch) -> None:
 
     assert len(docs) == 1
     assert docs[0].source_id == "harvard-nutrition-news"
-    assert docs[0].title == "Nutrition News"
+    assert docs[0].title is None
     assert docs[0].metadata["domain"] == "general-nutrition"
     assert docs[0].metadata["url"] == "https://nutritionsource.hsph.harvard.edu/nutrition-news/"
+    assert docs[0].metadata["fallback"] == "direct_fetch"
+    assert "Dietary Guidelines for Americans" in docs[0].text

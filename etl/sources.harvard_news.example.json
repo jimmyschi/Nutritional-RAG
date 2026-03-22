@@ -4,7 +4,7 @@
     {
       "source_id": "harvard-nutrition-news",
       "kind": "web",
-      "location": "https://nutritionsource.hsph.harvard.edu/nutrition-news/",
+      "location": "https://nutritionsource.hsph.harvard.edu/nutrition-news/feed/",
       "source_name": "Harvard Nutrition Source",
       "license": "website-terms-check-usage",
       "metadata": {
