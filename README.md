@@ -299,15 +299,39 @@ This script does two things:
 - sustained cache-enabled request traffic so Cache Hit Rate and Mean Citation Score stay non-zero
 - short concurrent bursts so In-Flight Queries spikes are visible during capture
 
-3. In Grafana, set time range to Last 1 hour.
+3. In Grafana (`http://localhost:3000`), set time range to **Last 1 hour**.
 
-4. Capture these panels for strong, recognizable metrics:
+4. Capture these panels and save them to `docs/screenshots/` using the filenames below:
 
-- Query Throughput (requests/sec)
-- Query Latency (seconds), including p95 and p99
-- Cache Hit Rate (30m)
-- Mean Citation Score (30m)
-- Retrieval Depth (mean counts)
+| Panel | Save as |
+|---|---|
+| Query Throughput (requests/sec) | `grafana_query_throughput.png` |
+| Query Latency with p95 and p99 | `grafana_query_latency.png` |
+| Cache Hit Rate (30m) | `grafana_cache_hit_rate.png` |
+| Mean Citation Score (30m) | `grafana_citation_score.png` |
+| Retrieval Depth (mean counts) | `grafana_retrieval_depth.png` |
+
+Once saved, they display below:
+
+### Query Throughput
+
+![Query Throughput](docs/screenshots/grafana_query_throughput.png)
+
+### Query Latency (p50 / p95 / p99)
+
+![Query Latency](docs/screenshots/grafana_query_latency.png)
+
+### Cache Hit Rate
+
+![Cache Hit Rate](docs/screenshots/grafana_cache_hit_rate.png)
+
+### Mean Citation Score
+
+![Mean Citation Score](docs/screenshots/grafana_citation_score.png)
+
+### Retrieval Depth
+
+![Retrieval Depth](docs/screenshots/grafana_retrieval_depth.png)
 
 Tip: In-Flight Queries is an instant gauge, so it is normally 0 between bursts.
 Capture while concurrent traffic is running if you want a non-zero screenshot.
