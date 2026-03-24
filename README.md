@@ -277,6 +277,41 @@ If you add or change dashboard provisioning files and do not see updates immedia
 docker compose restart grafana prometheus api
 ```
 
+## Grafana Demo and Screenshot Workflow
+
+Use this flow when capturing README screenshots for resume claims such as throughput,
+tail latency, cache effectiveness, and low error rates.
+
+1. Start the stack:
+
+```bash
+docker compose up --build -d
+```
+
+2. Generate dashboard-friendly traffic:
+
+```bash
+make run-demo-traffic
+```
+
+This script does two things:
+
+- sustained cache-enabled request traffic so Cache Hit Rate and Mean Citation Score stay non-zero
+- short concurrent bursts so In-Flight Queries spikes are visible during capture
+
+3. In Grafana, set time range to Last 1 hour.
+
+4. Capture these panels for strong, recognizable metrics:
+
+- Query Throughput (requests/sec)
+- Query Latency (seconds), including p95 and p99
+- Cache Hit Rate (30m)
+- Mean Citation Score (30m)
+- Retrieval Depth (mean counts)
+
+Tip: In-Flight Queries is an instant gauge, so it is normally 0 between bursts.
+Capture while concurrent traffic is running if you want a non-zero screenshot.
+
 ## Prometheus Metrics (Query Path)
 
 The API exports these custom metrics at `/metrics`:
