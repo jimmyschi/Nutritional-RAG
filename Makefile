@@ -1,7 +1,7 @@
 PYTHON ?= python
 PIP ?= pip
 
-.PHONY: install-dev lint test run-api run-ui run-etl-extract run-etl-transform run-etl-chunk run-etl-load run-eval run-eval-sweep run-demo-traffic up down
+.PHONY: install-dev lint test run-api run-ui run-etl-extract run-etl-transform run-etl-chunk run-etl-load run-eval run-eval-ragas run-eval-sweep run-demo-traffic up down
 
 install-dev:
 	$(PIP) install --upgrade pip
@@ -32,6 +32,9 @@ run-etl-load:
 	PYTHONPATH=src $(PYTHON) -m nutritional_rag.etl.cli --stage load --input data/processed/chunks.ndjson --batch-size 100
 
 run-eval:
+	$(PYTHON) scripts/evaluate_rag.py --api-base-url http://127.0.0.1:8001 --eval-set data/eval/nutrition_eval_set.ndjson
+
+run-eval-ragas:
 	$(PYTHON) scripts/evaluate_rag.py --api-base-url http://127.0.0.1:8001 --eval-set data/eval/nutrition_eval_set.ndjson
 
 run-eval-sweep:
