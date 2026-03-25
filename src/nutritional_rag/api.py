@@ -100,6 +100,7 @@ class QueryResponse(BaseModel):
     answer: str
     citations: list[Citation]
     cache_hit: bool = False
+    contexts: list[str] = []
 
 
 def _require_rag_settings() -> None:
@@ -361,9 +362,10 @@ def _log_query_to_mlflow(
         return
 
 
-def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]]:
+def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation], list[str]]:
     context_parts: list[str] = []
     citations: list[Citation] = []
+    raw_texts: list[str] = []
 
     for idx, match in enumerate(matches, start=1):
         if isinstance(match, dict):
@@ -379,6 +381,7 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
         if not text:
             continue
 
+        raw_texts.append(text)
         context_parts.append(f"[{idx}] {text}")
         source_id = metadata.get("source_id")
         resolved_title = metadata.get("title") or SOURCE_TITLE_OVERRIDES.get(str(source_id or ""))
@@ -401,7 +404,7 @@ def _build_context_from_matches(matches: list[Any]) -> tuple[str, list[Citation]
             )
         )
 
-    return "\n\n".join(context_parts), citations
+    return "\n\n".join(context_parts), citations, raw_texts
 
 
 def _pubmed_url_from_metadata(metadata: dict[str, Any]) -> str | None:
@@ -552,7 +555,7 @@ def query(request: QueryRequest) -> QueryResponse:
         candidate_matches = _extract_matches(query_result)
         candidate_count = len(candidate_matches)
         matches = _rerank_matches(request.question, candidate_matches, request.top_k)
-        context, citations = _build_context_from_matches(matches)
+        context, citations, raw_texts = _build_context_from_matches(matches)
 
         if not context:
             response = QueryResponse(
@@ -575,7 +578,7 @@ def query(request: QueryRequest) -> QueryResponse:
             answer = _generate_answer(openai_client, request.question, context)
         else:
             answer = "Generation skipped for retrieval-focused evaluation."
-        response = QueryResponse(answer=answer, citations=citations)
+        response = QueryResponse(answer=answer, citations=citations, contexts=raw_texts)
         if request.use_cache:
             _write_query_cache(redis_client, key, response)
         response_obj = response

@@ -1,7 +1,7 @@
 PYTHON ?= python
 PIP ?= pip
 
-.PHONY: install-dev lint test run-api run-ui run-etl-extract run-etl-transform run-etl-chunk run-etl-load run-eval run-eval-sweep up down
+.PHONY: install-dev lint test run-api run-ui run-etl-extract run-etl-transform run-etl-chunk run-etl-load run-eval run-eval-ragas run-eval-sweep run-demo-traffic up down
 
 install-dev:
 	$(PIP) install --upgrade pip
@@ -34,8 +34,14 @@ run-etl-load:
 run-eval:
 	$(PYTHON) scripts/evaluate_rag.py --api-base-url http://127.0.0.1:8001 --eval-set data/eval/nutrition_eval_set.ndjson
 
+run-eval-ragas:
+	$(PYTHON) scripts/evaluate_rag.py --api-base-url http://127.0.0.1:8001 --eval-set data/eval/nutrition_eval_set.ndjson
+
 run-eval-sweep:
 	$(PYTHON) scripts/sweep_eval.py --api-base-url http://127.0.0.1:8001 --eval-set data/eval/nutrition_eval_set.ndjson --top-k-values 3,5,8 --rerank-candidate-multipliers 1,2,3
+
+run-demo-traffic:
+	bash scripts/demo_grafana_traffic.sh
 
 up:
 	docker compose up --build -d

@@ -15,7 +15,7 @@ def main() -> None:
     with st.form("query-form"):
         question = st.text_area(
             "Question",
-            value="What are the dietary guidelines for Americans based on WHO?",
+            value="What is the best way to structure a healthy meal plan for a resistance training athlete according to the World Health Organization?",
             height=120,
         )
         top_k = st.slider("Top K retrieved chunks", min_value=1, max_value=10, value=5)

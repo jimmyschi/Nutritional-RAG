@@ -238,10 +238,31 @@ Or use:
 
 ```bash
 make run-eval-sweep
-```bash
-cp .env.example .env
-docker compose up --build -d
 ```
+
+### MLflow Evaluation Results
+
+The evaluation script measures retrieval and generation quality across the eval set and logs all
+metrics to MLflow. The current benchmark file includes 16 nutrition questions.
+
+Results from a representative run against the live API:
+
+| Metric | Value | Description |
+|---|---|---|
+| `eval_faithfulness_mean` | 0.926 | RAGAS: fraction of answer claims attributable to retrieved context |
+| `eval_answer_relevancy_mean` | 0.978 | RAGAS: semantic alignment between answer and original question |
+| `eval_context_recall_mean` | 1.000 | RAGAS: fraction of reference-answer sentences grounded in retrieved context |
+| `eval_keyword_hit_rate_mean` | 1.000 | At least one expected keyword found in every answer |
+| `eval_mean_citation_score` | 0.563 | Mean Pinecone similarity score of the top-cited chunk |
+| `eval_latency_ms_mean` | 6987 ms | End-to-end generation latency per query (p50) |
+| `eval_error_rate` | 0.000 | Zero failed API calls across all eval queries |
+
+![MLflow Eval Metrics](docs/screenshots/mlflow_eval_metrics.png)
+
+> Save the MLflow experiment screenshot as `docs/screenshots/mlflow_eval_metrics.png` to display it above.
+>
+> Note: `eval_latency_ms_p95` in MLflow is intentional. It summarizes tail latency across the evaluation sample,
+> while Prometheus/Grafana track the same behavior continuously over live traffic windows.
 
 Useful endpoints:
 
@@ -276,6 +297,72 @@ If you add or change dashboard provisioning files and do not see updates immedia
 ```bash
 docker compose restart grafana prometheus api
 ```
+
+## Grafana Demo and Screenshot Workflow
+
+Use this flow when capturing README screenshots for resume claims such as throughput,
+tail latency, cache effectiveness, and low error rates.
+
+1. Start the stack:
+
+```bash
+docker compose up --build -d
+```
+
+2. Generate dashboard-friendly traffic:
+
+```bash
+make run-demo-traffic
+```
+
+This script does two things:
+
+- sustained cache-enabled request traffic so Cache Hit Rate and Mean Citation Score stay non-zero
+- short concurrent bursts so In-Flight Queries spikes are visible during capture
+
+3. In Grafana (`http://localhost:3000`), set time range to **Last 1 hour**.
+
+4. Capture these panels and save them to `docs/screenshots/` using the filenames below:
+
+| Panel | Save as |
+|---|---|
+| Query Throughput (requests/sec) | `grafana_query_throughput.png` |
+| Query Latency with p95 and p99 | `grafana_query_latency.png` |
+| Cache Hit Rate (30m) | `grafana_cache_hit_rate.png` |
+| Mean Citation Score (30m) | `grafana_citation_score.png` |
+| Retrieval Depth (mean counts) | `grafana_retrieval_depth.png` |
+
+Once saved, they display below:
+
+### Query Throughput
+
+![Query Throughput](docs/screenshots/grafana_query_throughput.png)
+
+### Query Latency (p50 / p95 / p99)
+
+![Query Latency](docs/screenshots/grafana_query_latency.jpg)
+
+### Cache Hit Rate
+
+![Cache Hit Rate](docs/screenshots/grafana_cache_hit_rate.png)
+
+### Mean Citation Score
+
+![Mean Citation Score](docs/screenshots/grafana_citation_score.png)
+
+### Retrieval Depth
+
+![Retrieval Depth](docs/screenshots/grafana_retrieval_depth.png)
+
+Tip: In-Flight Queries is an instant gauge, so it is normally 0 between bursts.
+Capture while concurrent traffic is running if you want a non-zero screenshot.
+
+### Dashboard KPI Snapshot (From Grafana)
+
+Capture and document these two KPIs from your latest demo run so README and resume claims stay aligned:
+
+- Query latency p95 (30m window)
+- Error rate (30m window)
 
 ## Prometheus Metrics (Query Path)
 
