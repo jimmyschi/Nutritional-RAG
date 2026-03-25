@@ -2,12 +2,11 @@
 
 Initial repository scaffold for a nutritional Retrieval-Augmented Generation (RAG) system built around this stack:
 
-- LangChain for orchestration
+- LangChain for implementing ETL loaders (PDF, PubMed, YouTube)
 - Pinecone for vector retrieval
 - OpenAI embeddings with `text-embedding-3-small`
 - GPT-4 for generation
-- PyTorch plus sentence-transformers for reranking
-- MLflow for experiment tracking and registry
+- MLflow for experiment tracking
 - FastAPI for serving
 - Redis for caching
 - Prometheus and Grafana for metrics and dashboards
@@ -403,5 +402,8 @@ For YouTube, extraction uses LangChain `YoutubeLoader` and emits transcript docu
 1. Expand source adapters and add production-grade extraction quality checks.
 2. Add transformation and chunking pipelines for nutritional records.
 3. Wire Pinecone indexing and retrieval through LangChain.
-4. Add the reranker training and serving path under `ml/reranker`.
-5. Wire retrieval, reranking, and answer generation into the API and UI.
+4. Add LangChain-based query orchestration for retrieval and generation flow control.
+5. Add sentence-transformers and PyTorch reranking in the query path.
+6. Add the reranker training and serving path under `ml/reranker`.
+7. Add MLflow Model Registry workflow for model versioning and stage transitions.
+8. Wire retrieval, reranking, and answer generation into the API and UI.
