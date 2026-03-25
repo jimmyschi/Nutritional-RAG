@@ -1,6 +1,6 @@
 # Nutritional RAG
 
-Initial repository scaffold for a nutritional retrieval-augmented generation system built around this stack:
+Initial repository scaffold for a nutritional Retrieval-Augmented Generation (RAG) system built around this stack:
 
 - LangChain for orchestration
 - Pinecone for vector retrieval
@@ -300,9 +300,6 @@ docker compose restart grafana prometheus api
 
 ## Grafana Demo and Screenshot Workflow
 
-Use this flow when capturing README screenshots for resume claims such as throughput,
-tail latency, and low error rates.
-
 1. Start the stack:
 
 ```bash
@@ -348,8 +345,6 @@ Tip: In-Flight Queries is an instant gauge, so it is normally 0 between bursts.
 Capture while concurrent traffic is running if you want a non-zero screenshot.
 
 ### Dashboard KPI Snapshot (From Grafana)
-
-Capture and document these two KPIs from your latest demo run so README and resume claims stay aligned:
 
 - Query latency p95 (30m window)
 - Error rate (30m window)
@@ -410,4 +405,3 @@ For YouTube, extraction uses LangChain `YoutubeLoader` and emits transcript docu
 3. Wire Pinecone indexing and retrieval through LangChain.
 4. Add the reranker training and serving path under `ml/reranker`.
 5. Wire retrieval, reranking, and answer generation into the API and UI.
-6. Evaluate `PydanticAI` in a later stage if we add agentic LLM workflows.
