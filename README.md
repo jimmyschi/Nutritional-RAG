@@ -238,10 +238,26 @@ Or use:
 
 ```bash
 make run-eval-sweep
-```bash
-cp .env.example .env
-docker compose up --build -d
 ```
+
+### MLflow Evaluation Results
+
+The evaluation script measures retrieval and generation quality across the eval set and logs all
+metrics to MLflow. Results from a representative run against the live API:
+
+| Metric | Value | Description |
+|---|---|---|
+| `eval_faithfulness_mean` | 0.926 | RAGAS: fraction of answer claims attributable to retrieved context |
+| `eval_answer_relevancy_mean` | 0.978 | RAGAS: semantic alignment between answer and original question |
+| `eval_context_recall_mean` | 1.000 | RAGAS: fraction of reference-answer sentences grounded in retrieved context |
+| `eval_keyword_hit_rate_mean` | 1.000 | At least one expected keyword found in every answer |
+| `eval_mean_citation_score` | 0.563 | Mean Pinecone similarity score of the top-cited chunk |
+| `eval_latency_ms_mean` | 6987 ms | End-to-end generation latency per query (p50) |
+| `eval_error_rate` | 0.000 | Zero failed API calls across all eval queries |
+
+![MLflow Eval Metrics](docs/screenshots/mlflow_eval_metrics.png)
+
+> Save the MLflow experiment screenshot as `docs/screenshots/mlflow_eval_metrics.png` to display it above.
 
 Useful endpoints:
 
