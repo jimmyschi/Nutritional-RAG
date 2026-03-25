@@ -130,7 +130,7 @@ def _score_ragas(
     Returns one dict per input row. Rows without contexts get 0.0 for both scores.
     Gracefully skips if ragas is not installed.
     """
-    empty: list[dict[str, float]] = [{"faithfulness": 0.0, "response_relevancy": 0.0} for _ in rows]
+    empty: list[dict[str, float]] = [{"faithfulness": 0.0, "answer_relevancy": 0.0} for _ in rows]
 
     try:
         from ragas import EvaluationDataset, evaluate  # type: ignore[import-untyped]
@@ -175,7 +175,7 @@ def _score_ragas(
         for pos, idx in enumerate(scorable_indices):
             results[idx] = {
                 "faithfulness": float(scores_df["faithfulness"].iloc[pos]),
-                "response_relevancy": float(scores_df["response_relevancy"].iloc[pos]),
+                "answer_relevancy": float(scores_df["answer_relevancy"].iloc[pos]),
             }
     except Exception as err:
         print(f"RAGAS scoring failed: {err}")
@@ -210,7 +210,7 @@ def _log_to_mlflow(
     cache_hits = [float(row["cache_hit"]) for row in results]
     citation_counts = [float(row["citation_count"]) for row in results]
     faithfulness_scores = [s["faithfulness"] for s in ragas_scores]
-    answer_relevancy_scores = [s["response_relevancy"] for s in ragas_scores]
+    answer_relevancy_scores = [s["answer_relevancy"] for s in ragas_scores]
     errors = [row for row in results if int(row["status_code"]) != 200]
     p95_latency = (
         sorted(latencies)[int(0.95 * (len(latencies) - 1))] if latencies else 0.0
@@ -325,10 +325,10 @@ def main() -> None:
     if not args.skip_ragas and not args.skip_generation:
         ragas_scores = _score_ragas(results, openai_api_key=args.openai_api_key)
     else:
-        ragas_scores = [{"faithfulness": 0.0, "response_relevancy": 0.0} for _ in results]
+        ragas_scores = [{"faithfulness": 0.0, "answer_relevancy": 0.0} for _ in results]
 
     faithfulness_values = [s["faithfulness"] for s in ragas_scores if s["faithfulness"] > 0.0]
-    relevancy_values = [s["response_relevancy"] for s in ragas_scores if s["response_relevancy"] > 0.0]
+    relevancy_values = [s["answer_relevancy"] for s in ragas_scores if s["answer_relevancy"] > 0.0]
 
     print(f"Evaluated {len(results)} questions against {args.api_base_url}")
     print(f"Error rate: {len(errors) / max(1, len(results)):.2%}")
