@@ -243,7 +243,9 @@ make run-eval-sweep
 ### MLflow Evaluation Results
 
 The evaluation script measures retrieval and generation quality across the eval set and logs all
-metrics to MLflow. Results from a representative run against the live API:
+metrics to MLflow. The current benchmark file includes 16 nutrition questions.
+
+Results from a representative run against the live API:
 
 | Metric | Value | Description |
 |---|---|---|
@@ -258,6 +260,9 @@ metrics to MLflow. Results from a representative run against the live API:
 ![MLflow Eval Metrics](docs/screenshots/mlflow_eval_metrics.png)
 
 > Save the MLflow experiment screenshot as `docs/screenshots/mlflow_eval_metrics.png` to display it above.
+>
+> Note: `eval_latency_ms_p95` in MLflow is intentional. It summarizes tail latency across the evaluation sample,
+> while Prometheus/Grafana track the same behavior continuously over live traffic windows.
 
 Useful endpoints:
 
@@ -335,7 +340,7 @@ Once saved, they display below:
 
 ### Query Latency (p50 / p95 / p99)
 
-![Query Latency](docs/screenshots/grafana_query_latency.png)
+![Query Latency](docs/screenshots/grafana_query_latency.jpg)
 
 ### Cache Hit Rate
 
@@ -351,6 +356,13 @@ Once saved, they display below:
 
 Tip: In-Flight Queries is an instant gauge, so it is normally 0 between bursts.
 Capture while concurrent traffic is running if you want a non-zero screenshot.
+
+### Dashboard KPI Snapshot (From Grafana)
+
+Capture and document these two KPIs from your latest demo run so README and resume claims stay aligned:
+
+- Query latency p95 (30m window)
+- Error rate (30m window)
 
 ## Prometheus Metrics (Query Path)
 

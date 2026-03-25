@@ -242,7 +242,6 @@ def _log_to_mlflow(
                 "eval_latency_ms_p95": p95_latency,
                 "eval_keyword_hit_rate_mean": _mean_or_zero(keyword_hits),
                 "eval_context_recall_mean": _mean_or_zero(context_recall_scores),
-                "eval_recall_at_k_mean": _mean_or_zero(context_recall_scores),
                 "eval_mean_citation_score": _mean_or_zero(mean_scores),
                 "eval_cache_hit_rate": _mean_or_zero(cache_hits),
                 "eval_citation_count_mean": _mean_or_zero(citation_counts),
