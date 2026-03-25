@@ -301,7 +301,7 @@ docker compose restart grafana prometheus api
 ## Grafana Demo and Screenshot Workflow
 
 Use this flow when capturing README screenshots for resume claims such as throughput,
-tail latency, cache effectiveness, and low error rates.
+tail latency, and low error rates.
 
 1. Start the stack:
 
@@ -317,7 +317,7 @@ make run-demo-traffic
 
 This script does two things:
 
-- sustained cache-enabled request traffic so Cache Hit Rate and Mean Citation Score stay non-zero
+- sustained request traffic so throughput and latency panels are populated
 - short concurrent bursts so In-Flight Queries spikes are visible during capture
 
 3. In Grafana (`http://localhost:3000`), set time range to **Last 1 hour**.
@@ -327,8 +327,7 @@ This script does two things:
 | Panel | Save as |
 |---|---|
 | Query Throughput (requests/sec) | `grafana_query_throughput.png` |
-| Query Latency with p95 and p99 | `grafana_query_latency.png` |
-| Cache Hit Rate (30m) | `grafana_cache_hit_rate.png` |
+| Query Latency with p95 and p99 | `grafana_query_latency.jpg` |
 | Mean Citation Score (30m) | `grafana_citation_score.png` |
 | Retrieval Depth (mean counts) | `grafana_retrieval_depth.png` |
 
@@ -341,10 +340,6 @@ Once saved, they display below:
 ### Query Latency (p50 / p95 / p99)
 
 ![Query Latency](docs/screenshots/grafana_query_latency.jpg)
-
-### Cache Hit Rate
-
-![Cache Hit Rate](docs/screenshots/grafana_cache_hit_rate.png)
 
 ### Mean Citation Score
 
@@ -368,9 +363,8 @@ Capture and document these two KPIs from your latest demo run so README and resu
 
 The API exports these custom metrics at `/metrics`:
 
-- `nutritional_rag_query_requests_total{status,cache_hit,generate_answer}`
+- `nutritional_rag_query_requests_total{status,generate_answer}`
 - `nutritional_rag_query_errors_total{error_type}`
-- `nutritional_rag_query_cache_checks_total{result}` where result is `hit`, `miss`, or `skipped`
 - `nutritional_rag_query_in_flight`
 - `nutritional_rag_query_duration_seconds` (histogram)
 - `nutritional_rag_query_top_k` (histogram)
