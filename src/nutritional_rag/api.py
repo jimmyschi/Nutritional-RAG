@@ -60,11 +60,6 @@ QUERY_CITATIONS_RETURNED = Histogram(
     "Number of citations returned to clients.",
     buckets=(0, 1, 3, 5, 8, 10, 15, 20),
 )
-QUERY_MEAN_CITATION_SCORE = Histogram(
-    "nutritional_rag_query_mean_citation_score",
-    "Mean citation score per response.",
-    buckets=(0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
-)
 
 
 SOURCE_TITLE_OVERRIDES: dict[str, str] = {
@@ -621,12 +616,6 @@ def query(request: QueryRequest) -> QueryResponse:
         if response_obj is not None:
             citation_count = float(len(response_obj.citations))
             QUERY_CITATIONS_RETURNED.observe(citation_count)
-
-            if response_obj.citations:
-                mean_score = sum(c.score for c in response_obj.citations) / max(
-                    1, len(response_obj.citations)
-                )
-                QUERY_MEAN_CITATION_SCORE.observe(mean_score)
 
             cache_hit_label = "true" if response_obj.cache_hit else "false"
 

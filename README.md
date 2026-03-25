@@ -328,7 +328,6 @@ This script does two things:
 |---|---|
 | Query Throughput (requests/sec) | `grafana_query_throughput.png` |
 | Query Latency with p95 and p99 | `grafana_query_latency.jpg` |
-| Mean Citation Score (30m) | `grafana_citation_score.png` |
 | Retrieval Depth (mean counts) | `grafana_retrieval_depth.png` |
 
 Once saved, they display below:
@@ -340,10 +339,6 @@ Once saved, they display below:
 ### Query Latency (p50 / p95 / p99)
 
 ![Query Latency](docs/screenshots/grafana_query_latency.jpg)
-
-### Mean Citation Score
-
-![Mean Citation Score](docs/screenshots/grafana_citation_score.png)
 
 ### Retrieval Depth
 
@@ -371,7 +366,6 @@ The API exports these custom metrics at `/metrics`:
 - `nutritional_rag_query_rerank_candidate_multiplier` (histogram)
 - `nutritional_rag_query_candidate_matches` (histogram)
 - `nutritional_rag_query_citations_returned` (histogram)
-- `nutritional_rag_query_mean_citation_score` (histogram)
 
 Stop services:
 

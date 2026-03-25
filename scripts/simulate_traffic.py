@@ -156,12 +156,6 @@ def main() -> None:
     duration_count = after_metrics.get(
         "nutritional_rag_query_duration_seconds_count", 0.0
     ) - before_metrics.get("nutritional_rag_query_duration_seconds_count", 0.0)
-    citation_score_sum = after_metrics.get(
-        "nutritional_rag_query_mean_citation_score_sum", 0.0
-    ) - before_metrics.get("nutritional_rag_query_mean_citation_score_sum", 0.0)
-    citation_score_count = after_metrics.get(
-        "nutritional_rag_query_mean_citation_score_count", 0.0
-    ) - before_metrics.get("nutritional_rag_query_mean_citation_score_count", 0.0)
 
     summary = {
         "request_count": len(request_results),
@@ -174,7 +168,6 @@ def main() -> None:
         "client_cache_hit_rate": _safe_divide(sum(cache_hits), len(request_results)),
         "prometheus_cache_hit_rate": _safe_divide(cache_hit_delta, cache_hit_delta + cache_miss_delta),
         "prometheus_latency_seconds_mean": _safe_divide(duration_sum, duration_count),
-        "prometheus_mean_citation_score": _safe_divide(citation_score_sum, citation_score_count),
         "prometheus_request_deltas": prometheus_requests,
         "prometheus_cache_deltas": prometheus_cache,
         "errors": errors,
