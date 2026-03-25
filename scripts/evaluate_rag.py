@@ -30,16 +30,6 @@ def _keyword_hit_rate(answer: str, expected_keywords: list[str]) -> float:
     return hits / len(expected_keywords)
 
 
-def _source_recall(citations: list[dict[str, Any]], expected_source_ids: list[str]) -> float:
-    if not expected_source_ids:
-        return 0.0
-    actual = {str(citation.get("source_id", "")).lower() for citation in citations}
-    expected = {source_id.lower() for source_id in expected_source_ids}
-    if not expected:
-        return 0.0
-    return len(actual & expected) / len(expected)
-
-
 def _mean_or_zero(values: list[float]) -> float:
     return statistics.mean(values) if values else 0.0
 
@@ -54,9 +44,9 @@ def _evaluate_one(
     generate_answer: bool = True,
 ) -> dict[str, Any]:
     question = str(row.get("question", "")).strip()
+    reference = str(row.get("reference", "")).strip()
     top_k = int(row.get("top_k", 5))
     expected_keywords = [str(item) for item in row.get("expected_keywords", [])]
-    expected_sources = [str(item) for item in row.get("expected_source_ids", [])]
 
     payload = {
         "question": question,
@@ -78,11 +68,13 @@ def _evaluate_one(
     except requests.RequestException as error:
         return {
             "question": question,
+            "reference": reference,
             "status_code": 0,
             "error": str(error),
             "latency_ms": (time.perf_counter() - started_at) * 1000,
+            "answer": "",
+            "contexts": [],
             "keyword_hit_rate": 0.0,
-            "source_recall": 0.0,
             "mean_citation_score": 0.0,
             "cache_hit": 0.0,
             "citation_count": 0.0,
@@ -91,11 +83,13 @@ def _evaluate_one(
     if response.status_code != 200:
         return {
             "question": question,
+            "reference": reference,
             "status_code": response.status_code,
             "error": response.text[:500],
             "latency_ms": latency_ms,
+            "answer": "",
+            "contexts": [],
             "keyword_hit_rate": 0.0,
-            "source_recall": 0.0,
             "mean_citation_score": 0.0,
             "cache_hit": 0.0,
             "citation_count": 0.0,
@@ -108,13 +102,13 @@ def _evaluate_one(
 
     return {
         "question": question,
+        "reference": reference,
         "status_code": response.status_code,
         "error": "",
         "latency_ms": latency_ms,
         "answer": answer,
         "contexts": payload.get("contexts", []) or [],
         "keyword_hit_rate": _keyword_hit_rate(answer, expected_keywords),
-        "source_recall": _source_recall(citations, expected_sources),
         "mean_citation_score": _mean_or_zero(scores),
         "cache_hit": 1.0 if bool(payload.get("cache_hit", False)) else 0.0,
         "citation_count": float(len(citations)),
@@ -125,16 +119,19 @@ def _score_ragas(
     rows: list[dict[str, Any]],
     openai_api_key: str | None = None,
 ) -> list[dict[str, float]]:
-    """Run RAGAS Faithfulness + ResponseRelevancy on rows that have an answer and contexts.
+    """Run RAGAS Faithfulness + AnswerRelevancy + ContextRecall.
 
-    Returns one dict per input row. Rows without contexts get 0.0 for both scores.
+    Returns one dict per input row. Rows without required fields get 0.0 scores.
     Gracefully skips if ragas is not installed.
     """
-    empty: list[dict[str, float]] = [{"faithfulness": 0.0, "answer_relevancy": 0.0} for _ in rows]
+    empty: list[dict[str, float]] = [
+        {"faithfulness": 0.0, "answer_relevancy": 0.0, "context_recall": 0.0}
+        for _ in rows
+    ]
 
     try:
         from ragas import EvaluationDataset, evaluate  # type: ignore[import-untyped]
-        from ragas.metrics import Faithfulness, ResponseRelevancy  # type: ignore[import-untyped]
+        from ragas.metrics import ContextRecall, Faithfulness, ResponseRelevancy  # type: ignore[import-untyped]
     except ModuleNotFoundError:
         print("RAGAS not installed. Run: pip install 'ragas>=0.2,<0.3' to enable generation metrics.")
         return empty
@@ -150,13 +147,15 @@ def _score_ragas(
     scorable_indices: list[int] = []
     for i, row in enumerate(rows):
         answer = str(row.get("answer", "")).strip()
+        reference = str(row.get("reference", "")).strip()
         contexts = row.get("contexts", [])
         question = str(row.get("question", "")).strip()
-        if answer and contexts and question and not row.get("error"):
+        if answer and contexts and question and reference and not row.get("error"):
             scorable.append(
                 {
                     "user_input": question,
                     "response": answer,
+                    "reference": reference,
                     "retrieved_contexts": list(contexts),
                 }
             )
@@ -164,18 +163,19 @@ def _score_ragas(
 
     results = list(empty)
     if not scorable:
-        print("No scorable rows for RAGAS (need answer + contexts + no error).")
+        print("No scorable rows for RAGAS (need question + answer + reference + contexts + no error).")
         return results
 
     print(f"Running RAGAS on {len(scorable)} row(s) — this calls the OpenAI API...")
     try:
         dataset = EvaluationDataset.from_list(scorable)
-        result = evaluate(dataset, metrics=[Faithfulness(), ResponseRelevancy()])
+        result = evaluate(dataset, metrics=[Faithfulness(), ResponseRelevancy(), ContextRecall()])
         scores_df = result.to_pandas()
         for pos, idx in enumerate(scorable_indices):
             results[idx] = {
                 "faithfulness": float(scores_df["faithfulness"].iloc[pos]),
                 "answer_relevancy": float(scores_df["answer_relevancy"].iloc[pos]),
+                "context_recall": float(scores_df["context_recall"].iloc[pos]),
             }
     except Exception as err:
         print(f"RAGAS scoring failed: {err}")
@@ -205,12 +205,12 @@ def _log_to_mlflow(
 
     latencies = [float(row["latency_ms"]) for row in results]
     keyword_hits = [float(row["keyword_hit_rate"]) for row in results]
-    source_recalls = [float(row["source_recall"]) for row in results]
     mean_scores = [float(row["mean_citation_score"]) for row in results]
     cache_hits = [float(row["cache_hit"]) for row in results]
     citation_counts = [float(row["citation_count"]) for row in results]
     faithfulness_scores = [s["faithfulness"] for s in ragas_scores]
     answer_relevancy_scores = [s["answer_relevancy"] for s in ragas_scores]
+    context_recall_scores = [s["context_recall"] for s in ragas_scores]
     errors = [row for row in results if int(row["status_code"]) != 200]
     p95_latency = (
         sorted(latencies)[int(0.95 * (len(latencies) - 1))] if latencies else 0.0
@@ -241,7 +241,8 @@ def _log_to_mlflow(
                 "eval_latency_ms_mean": _mean_or_zero(latencies),
                 "eval_latency_ms_p95": p95_latency,
                 "eval_keyword_hit_rate_mean": _mean_or_zero(keyword_hits),
-                "eval_source_recall_mean": _mean_or_zero(source_recalls),
+                "eval_context_recall_mean": _mean_or_zero(context_recall_scores),
+                "eval_recall_at_k_mean": _mean_or_zero(context_recall_scores),
                 "eval_mean_citation_score": _mean_or_zero(mean_scores),
                 "eval_cache_hit_rate": _mean_or_zero(cache_hits),
                 "eval_citation_count_mean": _mean_or_zero(citation_counts),
@@ -286,7 +287,7 @@ def main() -> None:
     parser.add_argument(
         "--skip-ragas",
         action="store_true",
-        help="Skip RAGAS Faithfulness / ResponseRelevancy scoring (saves OpenAI calls)",
+        help="Skip RAGAS Faithfulness / AnswerRelevancy / ContextRecall scoring (saves OpenAI calls)",
     )
     parser.add_argument(
         "--openai-api-key",
@@ -317,7 +318,6 @@ def main() -> None:
 
     latencies = [float(row["latency_ms"]) for row in results]
     keyword_hit_values = [float(row["keyword_hit_rate"]) for row in results]
-    source_recall_values = [float(row["source_recall"]) for row in results]
     citation_score_values = [float(row["mean_citation_score"]) for row in results]
     errors = [row for row in results if int(row["status_code"]) != 200]
 
@@ -325,17 +325,27 @@ def main() -> None:
     if not args.skip_ragas and not args.skip_generation:
         ragas_scores = _score_ragas(results, openai_api_key=args.openai_api_key)
     else:
-        ragas_scores = [{"faithfulness": 0.0, "answer_relevancy": 0.0} for _ in results]
+        ragas_scores = [
+            {"faithfulness": 0.0, "answer_relevancy": 0.0, "context_recall": 0.0}
+            for _ in results
+        ]
+
+    for row, score in zip(results, ragas_scores):
+        row["faithfulness"] = score["faithfulness"]
+        row["answer_relevancy"] = score["answer_relevancy"]
+        row["context_recall"] = score["context_recall"]
 
     faithfulness_values = [s["faithfulness"] for s in ragas_scores if s["faithfulness"] > 0.0]
     relevancy_values = [s["answer_relevancy"] for s in ragas_scores if s["answer_relevancy"] > 0.0]
+    context_recall_values = [s["context_recall"] for s in ragas_scores if s["context_recall"] > 0.0]
 
     print(f"Evaluated {len(results)} questions against {args.api_base_url}")
     print(f"Error rate: {len(errors) / max(1, len(results)):.2%}")
     print(f"Mean latency (ms): {_mean_or_zero(latencies):.2f}")
     print(f"Mean keyword hit rate: {_mean_or_zero(keyword_hit_values):.4f}")
-    print(f"Mean source recall: {_mean_or_zero(source_recall_values):.4f}")
     print(f"Mean citation score: {_mean_or_zero(citation_score_values):.4f}")
+    if context_recall_values:
+        print(f"Mean context recall (RAGAS): {_mean_or_zero(context_recall_values):.4f}")
     if faithfulness_values:
         print(f"Mean faithfulness (RAGAS): {_mean_or_zero(faithfulness_values):.4f}")
     if relevancy_values:
