@@ -16,9 +16,9 @@ Initial repository scaffold for a nutritional Retrieval-Augmented Generation (RA
 
 ## Demo
 
-[![Nutritional RAG Demo](docs/screenshots/nutritional-rag-demo-thumbnail.png)](docs/demo/nutritional-rag-demo.mp4)
+[![Nutritional RAG Demo Preview](docs/screenshots/nutritional-rag-demo-preview.gif)](docs/demo/nutritional-rag-demo.mp4)
 
-Click the thumbnail above to watch a short walkthrough of the Streamlit demo experience.
+Preview the Streamlit experience above, or download the full demo video [here](docs/demo/nutritional-rag-demo.mp4).
 
 ## Repo Layout
 
